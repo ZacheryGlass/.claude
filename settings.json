@@ -1,5 +1,36 @@
 {
   "model": "sonnet",
+  "permissions": {
+    "WriteFile:*": "allow",
+    "ReadFile:*": "allow", 
+    "WebFetch(*)": "allow",
+    "Bash(ls:*)": "allow",
+    "Bash(grep:*)": "allow",
+    "Bash(find:*)": "allow",
+    "Bash(cat:*)": "allow",
+    "Bash(head:*)": "allow",
+    "Bash(tail:*)": "allow",
+    "Bash(mkdir:*)": "allow",
+    "Bash(touch:*)": "allow",
+    "Bash(pwd:*)": "allow",
+    "Bash(echo:*)": "allow",
+    "Bash(git:status)": "allow",
+    "Bash(git:diff*)": "allow",
+    "Bash(git:log*)": "allow",
+    "Bash(git:show*)": "allow",
+    "Bash(git:add*)": "allow",
+    "Bash(git:commit*)": "allow",
+    "Bash(git:checkout*)": "allow",
+    "Bash(git:stash*)": "allow",
+    "Bash(chmod:*)": "allow",
+    "Bash(rm:*)": "allow",
+    "Bash(py --version)": "allow",
+    "Bash(where python)": "allow",
+    "WebFetch(domain:docs.anthropic.com)": "allow",
+    "Bash(python:*)": "allow",
+    "Bash(pip install:*)": "allow",
+    "Bash(py:*)": "allow"
+  },
   "hooks": {
     "SessionStart": [
       {
