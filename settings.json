@@ -18,6 +18,10 @@
           {
             "type": "command",
             "command": "py -3 C:\\Users\\zache\\.claude\\hooks\\prevent_claude_commits.py"
+          },
+          {
+            "type": "command",
+            "command": "py -3 C:\\Users\\zache\\.claude\\hooks\\secret_scanner.py"
           }
         ]
       },
