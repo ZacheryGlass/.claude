@@ -1,19 +1,40 @@
 #!/usr/bin/env python3
 """
-Hook to prevent commits containing "Claude" or "Anthropic" in any form.
+Hook to prevent commits containing "Claude" or "Anthropic" in any form, and emojis.
 Blocks commits with these terms in:
 - Commit messages
 - Author fields
 - Co-author fields
+- Emojis in commit messages
 """
 import json
 import sys
 import re
 
+def contains_emoji(text):
+    """Check if text contains any emoji characters."""
+    # Unicode ranges for emoji characters
+    emoji_pattern = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"  # emoticons
+        "\U0001F300-\U0001F5FF"  # symbols & pictographs
+        "\U0001F680-\U0001F6FF"  # transport & map symbols
+        "\U0001F1E0-\U0001F1FF"  # flags (iOS)
+        "\U00002702-\U000027B0"  # dingbats
+        "\U000024C2-\U0001F251"  # enclosed characters
+        "\U0001F900-\U0001F9FF"  # supplemental symbols
+        "\U0001FA70-\U0001FAFF"  # symbols and pictographs extended-a
+        "]+", flags=re.UNICODE)
+    return bool(emoji_pattern.search(text))
+
 def check_git_commit_command(command):
     """Check if a git commit command contains prohibited terms."""
     prohibited_terms = ['claude', 'anthropic']
     command_lower = command.lower()
+    
+    # Check for emojis in the command
+    if contains_emoji(command):
+        return True, "Command contains emojis - removing emojis from commit"
     
     # Check for prohibited terms in the entire command
     for term in prohibited_terms:
@@ -34,11 +55,22 @@ def check_git_commit_command(command):
 
 def suggest_cleaned_command(command):
     """Suggest a cleaned version of the command."""
-    # Remove co-author lines with Claude/Anthropic
-    cleaned = re.sub(r'(?i)co-authored-by:.*(?:claude|anthropic).*\n?', '', command)
+    # Remove all emojis
+    emoji_pattern = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"  # emoticons
+        "\U0001F300-\U0001F5FF"  # symbols & pictographs
+        "\U0001F680-\U0001F6FF"  # transport & map symbols
+        "\U0001F1E0-\U0001F1FF"  # flags (iOS)
+        "\U00002702-\U000027B0"  # dingbats
+        "\U000024C2-\U0001F251"  # enclosed characters
+        "\U0001F900-\U0001F9FF"  # supplemental symbols
+        "\U0001FA70-\U0001FAFF"  # symbols and pictographs extended-a
+        "]+", flags=re.UNICODE)
+    cleaned = emoji_pattern.sub('', command)
     
-    # Remove Claude emoji and related text
-    cleaned = re.sub(r'🤖.*(?:claude|anthropic).*\n?', '', cleaned, flags=re.IGNORECASE)
+    # Remove co-author lines with Claude/Anthropic
+    cleaned = re.sub(r'(?i)co-authored-by:.*(?:claude|anthropic).*\n?', '', cleaned)
     
     # Remove any lines mentioning generated with Claude
     cleaned = re.sub(r'(?i).*generated with.*claude.*\n?', '', cleaned)
