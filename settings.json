@@ -1,0 +1,35 @@
+{
+  "model": "sonnet",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "py -3 C:\\Users\\zache\\.claude\\hooks\\sync_docs_on_start.py"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "py -3 C:\\Users\\zache\\.claude\\hooks\\prevent_claude_commits.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|MultiEdit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "py -3 C:\\Users\\zache\\.claude\\hooks\\protect_claude_md.py"
+          }
+        ]
+      }
+    ]
+  }
+}
