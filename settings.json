@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "py -3 C:\\Users\\zache\\.claude\\hooks\\sync_docs_on_start.py"
+            "command": "py -3 ~/.claude/hooks/sync_docs_on_start.py"
           }
         ]
       }
@@ -17,11 +17,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "py -3 C:\\Users\\zache\\.claude\\hooks\\prevent_claude_commits.py"
+            "command": "py -3 ~/.claude/hooks/prevent_claude_commits.py"
           },
           {
             "type": "command",
-            "command": "py -3 C:\\Users\\zache\\.claude\\hooks\\secret_scanner.py"
+            "command": "py -3 ~/.claude/hooks/secret_scanner.py"
           }
         ]
       },
@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "py -3 C:\\Users\\zache\\.claude\\hooks\\protect_claude_md.py"
+            "command": "py -3 ~/.claude/hooks/protect_claude_md.py"
           }
         ]
       }
