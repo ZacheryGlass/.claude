@@ -2,6 +2,7 @@
   "model": "sonnet",
   "permissions": {
     "allow": [
+      "WebSearch",
       "WriteFile:*",
       "ReadFile:*",
       "WebFetch(*)",
