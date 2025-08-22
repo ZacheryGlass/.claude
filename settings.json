@@ -1,5 +1,4 @@
 {
-  "model": "sonnet",
   "permissions": {
     "allow": [
       "WebSearch",
@@ -48,6 +47,7 @@
       "Bash(sudo:*)"
     ]
   },
+  "model": "opus",
   "hooks": {
     "PreToolUse": [
       {
@@ -73,5 +73,9 @@
         ]
       }
     ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash ~/.claude/statusline.sh"
   }
 }
