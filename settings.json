@@ -56,10 +56,6 @@
           {
             "type": "command",
             "command": "py -3 %USERPROFILE%/.claude/hooks/clean_commit_guard.py"
-          },
-          {
-            "type": "command",
-            "command": "py -3 %USERPROFILE%/.claude/hooks/secret_scanner.py"
           }
         ]
       },
