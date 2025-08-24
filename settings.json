@@ -47,7 +47,7 @@
       "Bash(sudo:*)"
     ]
   },
-  "model": "opus",
+  "model": "sonnet",
   "hooks": {
     "PreToolUse": [
       {
