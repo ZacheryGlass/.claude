@@ -43,19 +43,50 @@ extract_number() {
 
 # Extract information from JSON
 model_name=$(extract_value ".model.display_name")
+model_id=$(extract_value ".model.id")
 current_dir=$(extract_value ".workspace.current_dir")
 project_dir=$(extract_value ".workspace.project_dir")
+transcript_path=$(extract_value ".transcript_path")
 
-# Try to get context percentage from various possible locations
+# Calculate context percentage from transcript
 context_percent=""
-# Try direct percentage field
-context_percent=$(extract_number ".context.percentage")
-# If not found, try calculating from used/total
+if [[ -n "$transcript_path" ]] && [[ -f "$transcript_path" ]] && [[ -n "$jq_cmd" ]]; then
+    # Try to calculate context from transcript
+    total_chars=$("$jq_cmd" '[.messages[] | .content | length] | add // 0' "$transcript_path" 2>/dev/null)
+    
+    # Get model context limit (approximate token values)
+    case "$model_id" in
+        *"opus"*) model_limit=50000 ;;
+        *"sonnet"*) model_limit=50000 ;;
+        *"haiku"*) model_limit=25000 ;;
+        *) model_limit=50000 ;;
+    esac
+    
+    # Calculate percentage if we have character data
+    if [[ -n "$total_chars" ]] && [[ "$total_chars" != "0" ]] && [[ "$total_chars" != "null" ]]; then
+        # Rough approximation: 4 characters per token
+        estimated_tokens=$((total_chars / 4))
+        if [[ "$estimated_tokens" -gt 0 ]]; then
+            context_percent=$((estimated_tokens * 100 / model_limit))
+            # Cap at 100%
+            if [[ "$context_percent" -gt 100 ]]; then
+                context_percent=100
+            fi
+        fi
+    fi
+fi
+
+# Try alternative context calculation methods if transcript didn't work
 if [[ -z "$context_percent" ]]; then
-    context_used=$(extract_number ".context.used")
-    context_total=$(extract_number ".context.total")
-    if [[ -n "$context_used" ]] && [[ -n "$context_total" ]] && [[ "$context_total" != "0" ]]; then
-        context_percent=$((context_used * 100 / context_total))
+    # Try direct percentage field
+    context_percent=$(extract_number ".context.percentage")
+    # If not found, try calculating from used/total
+    if [[ -z "$context_percent" ]]; then
+        context_used=$(extract_number ".context.used")
+        context_total=$(extract_number ".context.total")
+        if [[ -n "$context_used" ]] && [[ -n "$context_total" ]] && [[ "$context_total" != "0" ]]; then
+            context_percent=$((context_used * 100 / context_total))
+        fi
     fi
 fi
 
@@ -117,7 +148,7 @@ components+=("📁 ${project_name}")
 components+=("🤖 ${model_name}")
 
 # Add context percentage if available
-if [[ -n "$context_percent" ]]; then
+if [[ -n "$context_percent" ]] && [[ "$context_percent" != "0" ]]; then
     components+=("📈 ${context_percent}%")
 fi
 
