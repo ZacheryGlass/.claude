@@ -3,43 +3,92 @@
 # Read Claude Code context from stdin
 input=$(cat)
 
-# Simple JSON parsing without jq using sed/grep
-extract_json_value() {
-    local key="$1"
-    echo "$input" | grep -o "\"$key\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | sed 's/.*"[^"]*"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' | head -1
+# Path to jq executable
+JQ="$HOME/.claude/bin/jq.exe"
+
+# Check if jq exists, fallback to system jq or basic parsing
+if [[ -f "$JQ" ]]; then
+    # Use local jq
+    jq_cmd="$JQ"
+elif command -v jq >/dev/null 2>&1; then
+    # Use system jq
+    jq_cmd="jq"
+else
+    # Fallback to basic parsing
+    jq_cmd=""
+fi
+
+# Function to extract JSON values
+extract_value() {
+    local path="$1"
+    if [[ -n "$jq_cmd" ]]; then
+        echo "$input" | "$jq_cmd" -r "$path // empty" 2>/dev/null
+    else
+        # Basic fallback parsing
+        local key="${path##*.}"
+        echo "$input" | grep -o "\"$key\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | sed 's/.*"[^"]*"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' | head -1
+    fi
 }
 
-# Extract relevant information
-model_name=$(extract_json_value "display_name")
-current_dir=$(extract_json_value "current_dir")
-project_dir=$(extract_json_value "project_dir")
+extract_number() {
+    local path="$1"
+    if [[ -n "$jq_cmd" ]]; then
+        echo "$input" | "$jq_cmd" -r "$path // empty" 2>/dev/null
+    else
+        # Basic fallback for numbers
+        local key="${path##*.}"
+        echo "$input" | grep -o "\"$key\"[[:space:]]*:[[:space:]]*[0-9.]*" | sed 's/.*"[^"]*"[[:space:]]*:[[:space:]]*\([0-9.]*\).*/\1/' | head -1
+    fi
+}
 
-# Default to Claude if no model name found
+# Extract information from JSON
+model_name=$(extract_value ".model.display_name")
+current_dir=$(extract_value ".workspace.current_dir")
+project_dir=$(extract_value ".workspace.project_dir")
+
+# Try to get context percentage from various possible locations
+context_percent=""
+# Try direct percentage field
+context_percent=$(extract_number ".context.percentage")
+# If not found, try calculating from used/total
+if [[ -z "$context_percent" ]]; then
+    context_used=$(extract_number ".context.used")
+    context_total=$(extract_number ".context.total")
+    if [[ -n "$context_used" ]] && [[ -n "$context_total" ]] && [[ "$context_total" != "0" ]]; then
+        context_percent=$((context_used * 100 / context_total))
+    fi
+fi
+
+# Default model name if not found
 if [[ -z "$model_name" ]]; then
     model_name="Claude"
 fi
 
-# Get just the directory name for cleaner display
-if [[ -n "$current_dir" ]]; then
+# Get project/directory name
+if [[ -n "$project_dir" ]]; then
     # Convert Windows path to Unix-style for Git Bash
+    project_dir=$(echo "$project_dir" | sed 's|\\|/|g')
+    project_name=$(basename "$project_dir")
+elif [[ -n "$current_dir" ]]; then
     current_dir=$(echo "$current_dir" | sed 's|\\|/|g')
-    dir_name=$(basename "$current_dir")
+    project_name=$(basename "$current_dir")
 else
-    dir_name="~"
+    project_name="no-project"
 fi
 
-# Check if we're in a git repository and get branch
-git_info=""
+# Get git branch info
+git_branch=""
+git_status=""
 if [[ -n "$current_dir" ]]; then
+    # Check if we're in a git repository
     if [[ -d "$current_dir/.git" ]] || git -C "$current_dir" rev-parse --git-dir >/dev/null 2>&1; then
         branch=$(git -C "$current_dir" branch --show-current 2>/dev/null)
         if [[ -n "$branch" ]]; then
-            # Get git status indicators
-            status_indicators=""
+            git_branch="$branch"
             
             # Check for uncommitted changes
             if [[ -n $(git -C "$current_dir" status --porcelain 2>/dev/null) ]]; then
-                status_indicators="*"
+                git_status="*"
             fi
             
             # Check if ahead/behind remote
@@ -48,41 +97,33 @@ if [[ -n "$current_dir" ]]; then
                 behind=$(git -C "$current_dir" rev-list --count HEAD..@{u} 2>/dev/null)
                 
                 if [[ "$ahead" -gt 0 ]]; then
-                    status_indicators="${status_indicators}↑${ahead}"
+                    git_status="${git_status}↑${ahead}"
                 fi
                 if [[ "$behind" -gt 0 ]]; then
-                    status_indicators="${status_indicators}↓${behind}"
+                    git_status="${git_status}↓${behind}"
                 fi
             fi
-            
-            git_info="git:${branch}${status_indicators}"
         fi
     fi
 fi
 
-# Get project name if available
-project_name=""
-if [[ -n "$project_dir" ]] && [[ "$project_dir" != "$current_dir" ]]; then
-    project_dir=$(echo "$project_dir" | sed 's|\\|/|g')
-    project_name="$(basename "$project_dir")"
-fi
-
-# Build status line components
+# Build status line components with emojis
 components=()
 
-# Add model name
-components+=("$model_name")
+# Add project folder
+components+=("📁 ${project_name}")
 
-# Add project name if available
-if [[ -n "$project_name" ]]; then
-    components+=("$project_name")
-else
-    components+=("$dir_name")
+# Add model
+components+=("🤖 ${model_name}")
+
+# Add context percentage if available
+if [[ -n "$context_percent" ]]; then
+    components+=("📈 ${context_percent}%")
 fi
 
-# Add git info if available
-if [[ -n "$git_info" ]]; then
-    components+=("$git_info")
+# Add git branch if available
+if [[ -n "$git_branch" ]]; then
+    components+=("🌿 ${git_branch}${git_status}")
 fi
 
 # Join components with separator
