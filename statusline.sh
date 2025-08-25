@@ -51,27 +51,24 @@ transcript_path=$(extract_value ".transcript_path")
 # Calculate context percentage from transcript
 context_percent=""
 if [[ -n "$transcript_path" ]] && [[ -f "$transcript_path" ]] && [[ -n "$jq_cmd" ]]; then
-    # Try to calculate context from transcript
-    total_chars=$("$jq_cmd" '[.messages[] | .content | length] | add // 0' "$transcript_path" 2>/dev/null)
+    # Get the latest cumulative token usage from the most recent assistant message
+    # Each assistant message has a usage field with the CUMULATIVE total tokens at that point
+    total_tokens=$(cat "$transcript_path" | \
+        "$jq_cmd" -s '[.[] | select(.message.role == "assistant") | .message.usage | 
+            ((.input_tokens // 0) + 
+             (.cache_creation_input_tokens // 0) + 
+             (.cache_read_input_tokens // 0) + 
+             (.output_tokens // 0))] | last // 0' 2>/dev/null)
     
-    # Get model context limit (approximate token values)
-    case "$model_id" in
-        *"opus"*) model_limit=50000 ;;
-        *"sonnet"*) model_limit=50000 ;;
-        *"haiku"*) model_limit=25000 ;;
-        *) model_limit=50000 ;;
-    esac
+    # All Claude models have 200k context limit
+    model_limit=200000
     
-    # Calculate percentage if we have character data
-    if [[ -n "$total_chars" ]] && [[ "$total_chars" != "0" ]] && [[ "$total_chars" != "null" ]]; then
-        # Rough approximation: 4 characters per token
-        estimated_tokens=$((total_chars / 4))
-        if [[ "$estimated_tokens" -gt 0 ]]; then
-            context_percent=$((estimated_tokens * 100 / model_limit))
-            # Cap at 100%
-            if [[ "$context_percent" -gt 100 ]]; then
-                context_percent=100
-            fi
+    # Calculate percentage if we have token data
+    if [[ -n "$total_tokens" ]] && [[ "$total_tokens" != "0" ]] && [[ "$total_tokens" != "null" ]]; then
+        context_percent=$((total_tokens * 100 / model_limit))
+        # Cap at 100%
+        if [[ "$context_percent" -gt 100 ]]; then
+            context_percent=100
         fi
     fi
 fi
@@ -147,9 +144,35 @@ components+=("📁 ${project_name}")
 # Add model
 components+=("🤖 ${model_name}")
 
-# Add context percentage if available
-if [[ -n "$context_percent" ]] && [[ "$context_percent" != "0" ]]; then
-    components+=("📈 ${context_percent}%")
+# Add context percentage if available with indicators
+if [[ -n "$context_percent" ]] && [[ -n "$total_tokens" ]]; then
+    # Format tokens in k format
+    if [[ "$total_tokens" -ge 1000 ]]; then
+        formatted_tokens=$((total_tokens / 1000))k
+    else
+        formatted_tokens=$total_tokens
+    fi
+    
+    # Add emoji indicator based on percentage
+    if [[ "$context_percent" -lt 50 ]]; then
+        # Green zone - safe
+        components+=("📈 ${formatted_tokens}/200k (${context_percent}%)")
+    elif [[ "$context_percent" -lt 80 ]]; then
+        # Yellow zone - caution
+        components+=("⚠️ ${formatted_tokens}/200k (${context_percent}%)")
+    else
+        # Red zone - danger (nearing auto-compact at 80%)
+        components+=("🔴 ${formatted_tokens}/200k (${context_percent}%)")
+    fi
+elif [[ -n "$context_percent" ]]; then
+    # Fallback if we only have percentage
+    if [[ "$context_percent" -lt 50 ]]; then
+        components+=("📈 ${context_percent}%")
+    elif [[ "$context_percent" -lt 80 ]]; then
+        components+=("⚠️ ${context_percent}%")
+    else
+        components+=("🔴 ${context_percent}%")
+    fi
 fi
 
 # Add git branch if available
