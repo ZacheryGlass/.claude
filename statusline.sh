@@ -48,41 +48,40 @@ current_dir=$(extract_value ".workspace.current_dir")
 project_dir=$(extract_value ".workspace.project_dir")
 transcript_path=$(extract_value ".transcript_path")
 
-# Calculate context percentage from transcript
+# Calculate context percentage from transcript + overhead
 context_percent=""
+total_tokens=""
+overhead_file="$HOME/.claude/context_overhead.json"
+
 if [[ -n "$transcript_path" ]] && [[ -f "$transcript_path" ]] && [[ -n "$jq_cmd" ]]; then
-    # Get the latest cumulative token usage from the most recent assistant message
-    # Each assistant message has a usage field with the CUMULATIVE total tokens at that point
-    total_tokens=$(cat "$transcript_path" | \
+    # Get the message tokens from transcript
+    message_tokens=$(cat "$transcript_path" | \
         "$jq_cmd" -s '[.[] | select(.message.role == "assistant") | .message.usage | 
             ((.input_tokens // 0) + 
              (.cache_creation_input_tokens // 0) + 
              (.cache_read_input_tokens // 0) + 
              (.output_tokens // 0))] | last // 0' 2>/dev/null)
     
+    # Get the context overhead if available
+    overhead_tokens=0
+    if [[ -f "$overhead_file" ]]; then
+        overhead_tokens=$(cat "$overhead_file" | "$jq_cmd" -r '.total_overhead // 0' 2>/dev/null)
+    fi
+    
+    # Calculate total tokens (messages + overhead)
+    if [[ -n "$message_tokens" ]] && [[ "$message_tokens" != "null" ]]; then
+        total_tokens=$((message_tokens + overhead_tokens))
+    fi
+    
     # All Claude models have 200k context limit
     model_limit=200000
     
     # Calculate percentage if we have token data
-    if [[ -n "$total_tokens" ]] && [[ "$total_tokens" != "0" ]] && [[ "$total_tokens" != "null" ]]; then
+    if [[ -n "$total_tokens" ]] && [[ "$total_tokens" != "0" ]]; then
         context_percent=$((total_tokens * 100 / model_limit))
         # Cap at 100%
         if [[ "$context_percent" -gt 100 ]]; then
             context_percent=100
-        fi
-    fi
-fi
-
-# Try alternative context calculation methods if transcript didn't work
-if [[ -z "$context_percent" ]]; then
-    # Try direct percentage field
-    context_percent=$(extract_number ".context.percentage")
-    # If not found, try calculating from used/total
-    if [[ -z "$context_percent" ]]; then
-        context_used=$(extract_number ".context.used")
-        context_total=$(extract_number ".context.total")
-        if [[ -n "$context_used" ]] && [[ -n "$context_total" ]] && [[ "$context_total" != "0" ]]; then
-            context_percent=$((context_used * 100 / context_total))
         fi
     fi
 fi

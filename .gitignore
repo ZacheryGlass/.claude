@@ -54,3 +54,6 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
+
+# Context overhead data
+context_overhead.json
