@@ -48,7 +48,7 @@ def main():
             "memory_files": 39,         # 39
             "total_overhead": 0,        # Will be calculated
             "timestamp": time.time(),
-            "note": "Manually set based on /context output - update when system changes"
+            "note": "For reference only - not used in statusline calculation. The transcript's input_tokens already includes this overhead."
         }
         
         # Calculate total overhead (everything except messages)

@@ -48,42 +48,73 @@ current_dir=$(extract_value ".workspace.current_dir")
 project_dir=$(extract_value ".workspace.project_dir")
 transcript_path=$(extract_value ".transcript_path")
 
-# Calculate context percentage from transcript + overhead
+# Calculate context percentage from multiple sources
 context_percent=""
 total_tokens=""
 overhead_file="$HOME/.claude/context_overhead.json"
+data_source=""
 
-if [[ -n "$transcript_path" ]] && [[ -f "$transcript_path" ]] && [[ -n "$jq_cmd" ]]; then
-    # Get the message tokens from transcript
-    message_tokens=$(cat "$transcript_path" | \
+# Debug mode - set STATUSLINE_DEBUG=1 to enable
+if [[ "$STATUSLINE_DEBUG" == "1" ]]; then
+    debug_log() { echo "[statusline] $1" >&2; }
+else
+    debug_log() { :; }
+fi
+
+# Method 1: Check for direct context data in JSON input
+if [[ -n "$jq_cmd" ]]; then
+    # Try to get input_tokens directly from the JSON context
+    direct_tokens=$(echo "$input" | "$jq_cmd" -r '.context.input_tokens // empty' 2>/dev/null)
+    debug_log "Direct extraction attempt: jq_cmd='$jq_cmd', result='$direct_tokens'"
+    if [[ -n "$direct_tokens" ]] && [[ "$direct_tokens" != "null" ]] && [[ "$direct_tokens" != "empty" ]]; then
+        total_tokens=$direct_tokens
+        data_source="direct"
+        debug_log "Using direct context data: $total_tokens tokens"
+    fi
+fi
+
+# Method 2: Try transcript file if no direct data
+if [[ -z "$total_tokens" ]] && [[ -n "$transcript_path" ]] && [[ -f "$transcript_path" ]] && [[ -n "$jq_cmd" ]]; then
+    # Get the context tokens from transcript (input tokens only, no output tokens)
+    # The input_tokens field already includes all system overhead + messages
+    transcript_tokens=$(cat "$transcript_path" | \
         "$jq_cmd" -s '[.[] | select(.message.role == "assistant") | .message.usage | 
             ((.input_tokens // 0) + 
              (.cache_creation_input_tokens // 0) + 
-             (.cache_read_input_tokens // 0) + 
-             (.output_tokens // 0))] | last // 0' 2>/dev/null)
+             (.cache_read_input_tokens // 0))] | last // 0' 2>/dev/null)
     
-    # Get the context overhead if available
-    overhead_tokens=0
-    if [[ -f "$overhead_file" ]]; then
-        overhead_tokens=$(cat "$overhead_file" | "$jq_cmd" -r '.total_overhead // 0' 2>/dev/null)
+    if [[ -n "$transcript_tokens" ]] && [[ "$transcript_tokens" != "0" ]]; then
+        total_tokens=$transcript_tokens
+        data_source="transcript"
+        debug_log "Using transcript data: $total_tokens tokens from $transcript_path"
+    else
+        debug_log "Transcript file exists but has no token data: $transcript_path"
     fi
-    
-    # Calculate total tokens (messages + overhead)
-    if [[ -n "$message_tokens" ]] && [[ "$message_tokens" != "null" ]]; then
-        total_tokens=$((message_tokens + overhead_tokens))
+fi
+
+# Method 3: Fallback to overhead baseline if available
+if [[ -z "$total_tokens" ]] && [[ -f "$overhead_file" ]] && [[ -n "$jq_cmd" ]]; then
+    overhead_tokens=$(cat "$overhead_file" | "$jq_cmd" -r '.total_overhead // 0' 2>/dev/null)
+    if [[ -n "$overhead_tokens" ]] && [[ "$overhead_tokens" != "0" ]]; then
+        total_tokens=$overhead_tokens
+        data_source="overhead"
+        debug_log "Using overhead baseline: $total_tokens tokens"
     fi
+fi
+
+# All Claude models have 200k context limit
+model_limit=200000
     
-    # All Claude models have 200k context limit
-    model_limit=200000
-    
-    # Calculate percentage if we have token data
-    if [[ -n "$total_tokens" ]] && [[ "$total_tokens" != "0" ]]; then
-        context_percent=$((total_tokens * 100 / model_limit))
-        # Cap at 100%
-        if [[ "$context_percent" -gt 100 ]]; then
-            context_percent=100
-        fi
+# Calculate percentage if we have token data
+if [[ -n "$total_tokens" ]] && [[ "$total_tokens" != "0" ]]; then
+    context_percent=$((total_tokens * 100 / model_limit))
+    # Cap at 100%
+    if [[ "$context_percent" -gt 100 ]]; then
+        context_percent=100
     fi
+    debug_log "Context: $total_tokens/$model_limit tokens ($context_percent%) from $data_source"
+else
+    debug_log "No context data available"
 fi
 
 # Default model name if not found
