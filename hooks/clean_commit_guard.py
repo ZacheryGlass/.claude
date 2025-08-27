@@ -104,30 +104,30 @@ def main():
         if 'git config' in command:
             command_lower = command.lower()
             if 'user.name' in command and ('claude' in command_lower or 'anthropic' in command_lower):
-                print("❌ BLOCKED: Cannot set git user.name to Claude or Anthropic")
-                print("Use the default git settings for commits")
+                print("BLOCKED: Cannot set git user.name to Claude or Anthropic", file=sys.stderr)
+                print("Use the default git settings for commits", file=sys.stderr)
                 sys.exit(2)  # Exit code 2 blocks the command
             if 'user.email' in command and ('claude' in command_lower or 'anthropic' in command_lower):
-                print("❌ BLOCKED: Cannot set git user.email with Claude/Anthropic")
-                print("Use the default git settings for commits")
+                print("BLOCKED: Cannot set git user.email with Claude/Anthropic", file=sys.stderr)
+                print("Use the default git settings for commits", file=sys.stderr)
                 sys.exit(2)
                 
         # Check git commit commands
         has_issue, message = check_git_commit_command(command)
         
         if has_issue:
-            print(f"❌ BLOCKED: {message}")
-            print("\nYour CLAUDE.md configuration specifies:")
-            print("- Never add Claude as a commit author")
-            print("- Always commit using the default git settings")
+            print(f"BLOCKED: {message}", file=sys.stderr)
+            print("\nYour CLAUDE.md configuration specifies:", file=sys.stderr)
+            print("- Never add Claude as a commit author", file=sys.stderr)
+            print("- Always commit using the default git settings", file=sys.stderr)
             
             # Suggest cleaned command if it's a commit
             if 'git commit' in command:
                 cleaned = suggest_cleaned_command(command)
                 if cleaned and 'git commit' in cleaned:
-                    print("\n✅ Suggested cleaned command:")
-                    print(cleaned)
-                    print("\nThe commit will use your default git author settings.")
+                    print("\nSuggested cleaned command:", file=sys.stderr)
+                    print(cleaned, file=sys.stderr)
+                    print("\nThe commit will use your default git author settings.", file=sys.stderr)
             
             sys.exit(2)  # Exit code 2 blocks the command
             
