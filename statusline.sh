@@ -51,7 +51,14 @@ transcript_path=$(extract_value ".transcript_path")
 # Calculate context percentage from multiple sources
 context_percent=""
 total_tokens=""
-overhead_file="$HOME/.claude/context_overhead.json"
+# Look for context_overhead.json in local .claude directory only
+if [[ -n "$current_dir" ]] && [[ -f "$current_dir/.claude/context_overhead.json" ]]; then
+    overhead_file="$current_dir/.claude/context_overhead.json"
+elif [[ -f ".claude/context_overhead.json" ]]; then
+    overhead_file=".claude/context_overhead.json"
+else
+    overhead_file=""
+fi
 data_source=""
 
 # Debug mode - set STATUSLINE_DEBUG=1 to enable
@@ -93,13 +100,17 @@ if [[ -z "$total_tokens" ]] && [[ -n "$transcript_path" ]] && [[ -f "$transcript
 fi
 
 # Method 3: Fallback to overhead baseline if available
-if [[ -z "$total_tokens" ]] && [[ -f "$overhead_file" ]] && [[ -n "$jq_cmd" ]]; then
+if [[ -z "$total_tokens" ]] && [[ -n "$overhead_file" ]] && [[ -f "$overhead_file" ]] && [[ -n "$jq_cmd" ]]; then
     overhead_tokens=$(cat "$overhead_file" | "$jq_cmd" -r '.total_overhead // 0' 2>/dev/null)
     if [[ -n "$overhead_tokens" ]] && [[ "$overhead_tokens" != "0" ]]; then
         total_tokens=$overhead_tokens
         data_source="overhead"
-        debug_log "Using overhead baseline: $total_tokens tokens"
+        debug_log "Using overhead baseline from $overhead_file: $total_tokens tokens"
     fi
+elif [[ -z "$overhead_file" ]]; then
+    debug_log "No local context overhead file available"
+else
+    debug_log "Overhead file not found or unusable: $overhead_file"
 fi
 
 # All Claude models have 200k context limit

@@ -11,9 +11,12 @@ import time
 import re
 from pathlib import Path
 
-# Lock file to prevent recursion
+# Lock file to prevent recursion (stays in global .claude to prevent conflicts)
 LOCK_FILE = Path.home() / ".claude" / ".context_hook_lock"
-OVERHEAD_FILE = Path.home() / ".claude" / "context_overhead.json"
+
+# Context overhead file goes in local .claude directory
+LOCAL_CLAUDE_DIR = Path.cwd() / ".claude"
+OVERHEAD_FILE = LOCAL_CLAUDE_DIR / "context_overhead.json"
 TIMEOUT = 30  # seconds to wait for context command
 
 def main():
@@ -30,7 +33,10 @@ def main():
         # Create lock file
         LOCK_FILE.touch()
         
-        print("Setting up context overhead constants...", file=sys.stderr)
+        # Ensure local .claude directory exists
+        LOCAL_CLAUDE_DIR.mkdir(parents=True, exist_ok=True)
+        
+        print(f"Setting up context overhead constants in {LOCAL_CLAUDE_DIR}...", file=sys.stderr)
         
         # For now, use the known overhead values from the latest /context output
         # These can be manually updated by running /context and updating the script
