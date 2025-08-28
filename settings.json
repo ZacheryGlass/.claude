@@ -49,17 +49,6 @@
   },
   "model": "sonnet",
   "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "py -3 \"%USERPROFILE%\\.claude\\hooks\\session_context_tracker.py\""
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
