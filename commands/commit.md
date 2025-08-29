@@ -48,4 +48,10 @@ You need to commit changes using conventional commit format.
 4. Commit with the generated or provided message
 5. Show the final commit result
 
+**Important Requirements:**
+- NEVER include any reference to Anthropic, Claude, or AI assistance in commit messages
+- NEVER use emojis anywhere in the commit (message, author, etc.)
+- Use the default git author settings
+- Focus only on describing the actual code changes made
+
 Make sure to analyze the changes to determine the appropriate commit type and generate a meaningful description.
