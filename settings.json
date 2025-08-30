@@ -4,7 +4,7 @@
       "WebSearch",
       "WriteFile:*",
       "ReadFile:*",
-      "WebFetch(*)",
+      "WebFetch(domain:*)",
       "Bash(ls:*)",
       "Bash(grep:*)",
       "Bash(find:*)",
@@ -16,20 +16,21 @@
       "Bash(pwd:*)",
       "Bash(echo:*)",
       "Bash(git:status)",
-      "Bash(git:diff*)",
-      "Bash(git:log*)",
-      "Bash(git:show*)",
-      "Bash(git:add*)",
-      "Bash(git:commit*)",
-      "Bash(git:checkout*)",
-      "Bash(git:stash*)",
+      "Bash(git:diff:*)",
+      "Bash(git:log:*)",
+      "Bash(git:show:*)",
+      "Bash(git:add:*)",
+      "Bash(git:commit:*)",
+      "Bash(git:checkout:*)",
+      "Bash(git:stash:*)",
       "Bash(chmod:*)",
       "Bash(git fetch:*)",
-      "Bash(python:*)",
-      "Bash(py:*)"
+      "Bash(grep -E:*)"
     ],
     "deny": [],
     "ask": [
+      "Bash(python:*)",
+      "Bash(py:*)",
       "Bash(py --version)",
       "Bash(where python)",
       "Bash(pip install:*)",
@@ -41,13 +42,12 @@
       "Bash(git reset:*)",
       "Bash(git clean:*)",
       "Bash(mv:*)",
-      "Bash(cp:* *)",
+      "Bash(cp:*)",
       "Bash(curl:*)",
       "Bash(wget:*)",
       "Bash(sudo:*)"
     ]
   },
-  "model": "sonnet",
   "hooks": {
     "PreToolUse": [
       {
@@ -73,5 +73,6 @@
   "statusLine": {
     "type": "command",
     "command": "bash ~/.claude/statusline.sh"
-  }
+  },
+  "model": "sonnet"
 }
