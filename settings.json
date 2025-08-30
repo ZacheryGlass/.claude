@@ -48,6 +48,7 @@
       "Bash(sudo:*)"
     ]
   },
+  "model": "sonnet",
   "hooks": {
     "PreToolUse": [
       {
@@ -56,6 +57,10 @@
           {
             "type": "command",
             "command": "py -3 \"%USERPROFILE%\\.claude\\hooks\\clean_commit_guard.py\""
+          },
+          {
+            "type": "command",
+            "command": "py -3 \"%USERPROFILE%\\.claude\\hooks\\github_issue_guard.py\""
           }
         ]
       },
@@ -67,12 +72,29 @@
             "command": "py -3 \"%USERPROFILE%\\.claude\\hooks\\protect_claude_md.py\""
           }
         ]
+      },
+      {
+        "matcher": "git_commit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "py -3 \"%USERPROFILE%\\.claude\\hooks\\clean_commit_guard.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__github__create_issue|mcp__github__add_issue_comment|mcp__github__update_issue",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "py -3 \"%USERPROFILE%\\.claude\\hooks\\github_issue_guard.py\""
+          }
+        ]
       }
     ]
   },
   "statusLine": {
     "type": "command",
     "command": "bash ~/.claude/statusline.sh"
-  },
-  "model": "sonnet"
+  }
 }

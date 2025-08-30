@@ -89,12 +89,28 @@ def main():
     try:
         input_data = json.load(sys.stdin)
         tool_name = input_data.get('tool_name', '')
+        tool_input = input_data.get('tool_input', {})
         
-        # Only check Bash commands
-        if tool_name != 'Bash':
+        # Handle both Bash commands and MCP git tools
+        if tool_name == 'Bash':
+            command = tool_input.get('command', '')
+        elif tool_name == 'git_commit':
+            # For MCP git_commit tool, check the message parameter
+            message = tool_input.get('message', '')
+            if message:
+                # Check the commit message for prohibited content
+                has_issue, issue_message = check_git_commit_command(f'git commit -m "{message}"')
+                if has_issue:
+                    print(f"BLOCKED: {issue_message}", file=sys.stderr)
+                    print("\nYour CLAUDE.md configuration specifies:", file=sys.stderr)
+                    print("- Never add Claude as a commit author", file=sys.stderr)
+                    print("- Always commit using the default git settings", file=sys.stderr)
+                    sys.exit(2)  # Exit code 2 blocks the command
+            sys.exit(0)
+        else:
             sys.exit(0)
             
-        command = input_data.get('tool_input', {}).get('command', '')
+        command = tool_input.get('command', '')
         
         # Check if this is a git commit command
         if 'git commit' not in command and 'git config' not in command:
