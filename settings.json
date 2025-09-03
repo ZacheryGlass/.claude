@@ -23,9 +23,15 @@
       "Bash(git:commit:*)",
       "Bash(git:checkout:*)",
       "Bash(git:stash:*)",
+      "Bash(npm install:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh issue close:*)",
       "Bash(chmod:*)",
       "Bash(git fetch:*)",
-      "Bash(grep -E:*)"
+      "Bash(grep -E:*)",
+      "Bash(pip install:*)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": [
@@ -33,7 +39,6 @@
       "Bash(py:*)",
       "Bash(py --version)",
       "Bash(where python)",
-      "Bash(pip install:*)",
       "Bash(rm:*)",
       "Bash(git push:*)",
       "Bash(git pull:*)",

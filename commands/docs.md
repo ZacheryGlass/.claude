@@ -11,7 +11,7 @@ Current working directory: !`pwd`
 
 Recent changes: !`git log --oneline -5`
 
-Documentation files: !`find . -name "*.md" -o -name "*.rst" -o -name "*.txt" | grep -E "(README|CHANGELOG|doc)" | head -10`
+Documentation files: !`ls *.md 2>/dev/null`
 
 ## Your task
 
