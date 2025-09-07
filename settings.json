@@ -51,9 +51,16 @@
       "Bash(curl:*)",
       "Bash(wget:*)",
       "Bash(sudo:*)"
-    ]
+    ],
+    "defaultMode": "acceptEdits"
   },
-  "model": "opus",
+  "model": "sonnet",
+  "env": {
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "DISABLE_BUG_COMMAND": "1",
+    "DISABLE_TELEMETRY": "1",
+    "CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL": "1"
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -101,5 +108,6 @@
   "statusLine": {
     "type": "command",
     "command": "bash ~/.claude/statusline.sh"
-  }
+  },
+  "includeCoAuthoredBy": false
 }
