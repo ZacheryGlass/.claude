@@ -1,9 +1,9 @@
 ---
-description: Run documentation updater to analyze and improve project documentation
+description: Complete documentation workflow: review, implement fixes, and commit changes
 argument-hint: [optional: specific file or directory to focus on]
 ---
 
-# Documentation Updater Command
+# Documentation Workflow Command
 
 ## Context
 
@@ -17,14 +17,25 @@ Documentation files: !`ls *.md 2>/dev/null`
 
 $ARGUMENTS
 
-Launch the doc-updater agent to analyze the current state of documentation and provide recommendations for improvements.
+Execute a complete documentation workflow in three phases:
 
-The doc-updater agent will:
+## Phase 1: Documentation Review
+Use the doc-reviewer agent to analyze the current state of documentation:
 - Identify code changes that need corresponding documentation updates
 - Find documentation that has become outdated
 - Suggest areas where new documentation should be added
 - Review documentation quality and consistency
 
-If arguments are provided, focus the analysis on the specified files or directories. Otherwise, perform a comprehensive documentation review of the entire project.
+## Phase 2: Implement Changes
+Use the doc-implementer agent to execute the review recommendations:
+- Update existing documentation files
+- Create new documentation where needed
+- Fix broken links and references
+- Ensure consistent formatting and quality
 
-Use the Task tool to launch the doc-updater agent with appropriate context about the current project state.
+## Phase 3: Commit Changes
+Use the committer agent to create a conventional commit for all documentation improvements.
+
+If arguments are provided, focus the entire workflow on the specified files or directories. Otherwise, perform a comprehensive documentation review and update of the entire project.
+
+Execute each phase sequentially, ensuring each agent completes its work before proceeding to the next phase.
