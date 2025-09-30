@@ -61,7 +61,7 @@
     ],
     "defaultMode": "acceptEdits"
   },
-  "model": "opusplan",
+  "model": "sonnet",
   "hooks": {
     "PreToolUse": [
       {
@@ -104,10 +104,22 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "py -3 \"%USERPROFILE%\\.claude\\hooks\\emoji_remover.py\""
+          }
+        ]
+      }
     ]
   },
   "statusLine": {
     "type": "command",
     "command": "bash ~/.claude/statusline.sh"
-  }
+  },
+  "alwaysThinkingEnabled": false
 }
