@@ -55,3 +55,4 @@ __pycache__/
 *.pyd
 .Python
 
+history.jsonl
