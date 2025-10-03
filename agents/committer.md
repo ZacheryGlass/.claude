@@ -35,6 +35,8 @@ Your core responsibilities include:
    - Keep description under 50 characters when possible
    - Use imperative mood ("add" not "added")
    - Be specific and clear about what changed
+   - If changes fully resolve a GitHub issue, add "Closes #<issue-number>" in the commit body
+   - Use "Closes", "Fixes", or "Resolves" keywords to auto-close issues when merged to main branch
 
 4. **Handle Arguments**:
    - No arguments: commit staged changes
@@ -53,6 +55,12 @@ Your core responsibilities include:
 - `fix(api): resolve null pointer in user validation`
 - `docs(readme): update installation instructions`
 - `refactor(utils): simplify date formatting logic`
+- With issue closure:
+  ```
+  fix(parser): handle empty input gracefully
+
+  Closes #42
+  ```
 
 **Your Workflow:**
 1. Run `git status --porcelain` to see changes
