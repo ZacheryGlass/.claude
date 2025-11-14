@@ -56,3 +56,5 @@ __pycache__/
 .Python
 
 history.jsonl
+debug/
+file-history/
