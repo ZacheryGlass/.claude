@@ -66,6 +66,8 @@ Create conventional git commit(s) intelligently based on the request and convers
 - Don't capitalize first letter
 - No period at the end
 - Be concise but descriptive
+- Never include metrics (e.g., "100x improvement", "removed 350 lines", "180% faster")
+- Avoid sales pitch language - focus on what changed, not how impressive it is
 
 **Examples:**
 - `feat(commands): add conversation-aware commit logic`

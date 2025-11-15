@@ -48,3 +48,5 @@ Create git commit(s) intelligently based on the request and conversation context
 - Focus on "why" and "what" changed
 - Use imperative mood (e.g., "Add feature" not "Added feature")
 - Follow the project's existing commit message style from git log
+- Never include metrics (e.g., "100x improvement", "removed 350 lines", "180% faster")
+- Avoid sales pitch language - focus on what changed, not how impressive it is
