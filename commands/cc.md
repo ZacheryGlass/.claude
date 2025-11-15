@@ -2,6 +2,7 @@
 allowed-tools: Bash(git add:*), Bash(git status:*), Bash(git commit:*), Bash(git diff:*)
 argument-hint: [description] | [multi-commit request]
 description: Create intelligent conventional commits based on conversation context
+model: haiku
 ---
 
 ## Context
