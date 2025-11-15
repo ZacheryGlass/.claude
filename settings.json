@@ -8,6 +8,8 @@
   "includeCoAuthoredBy": false,
   "permissions": {
     "allow": [
+      "Read(//D:/*/git/gpu/**)",
+      "Edit(//D:/*/git/gpu/**)",
       "WebSearch",
       "WebFetch(domain:*)",
       "Read",
