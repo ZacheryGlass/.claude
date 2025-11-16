@@ -6,6 +6,10 @@ input=$(cat)
 # Path to jq executable
 JQ="$HOME/.claude/bin/jq.exe"
 
+# Cache settings
+CACHE_FILE="$HOME/.claude/.statusline_cache"
+CACHE_TTL=300  # 5 minutes in seconds
+
 # Check if jq exists, fallback to system jq or basic parsing
 if [[ -f "$JQ" ]]; then
     # Use local jq
@@ -41,6 +45,49 @@ extract_number() {
     fi
 }
 
+# Cache functions
+read_cache() {
+    local dir="$1"
+    if [[ ! -f "$CACHE_FILE" ]]; then
+        return 1
+    fi
+
+    # Read cache and check if it matches current directory
+    local cache_content=$(cat "$CACHE_FILE" 2>/dev/null)
+    local cache_dir=$(echo "$cache_content" | grep "^DIR=" | cut -d'=' -f2-)
+    local cache_time=$(echo "$cache_content" | grep "^TIME=" | cut -d'=' -f2)
+
+    if [[ "$cache_dir" != "$dir" ]]; then
+        return 1
+    fi
+
+    # Check if cache is still valid
+    local current_time=$(date +%s)
+    local age=$((current_time - cache_time))
+
+    if [[ $age -gt $CACHE_TTL ]]; then
+        return 1
+    fi
+
+    # Return cached values
+    echo "$cache_content"
+    return 0
+}
+
+write_cache() {
+    local dir="$1"
+    local branch="$2"
+    local status="$3"
+    local current_time=$(date +%s)
+
+    cat > "$CACHE_FILE" <<EOF
+DIR=$dir
+TIME=$current_time
+BRANCH=$branch
+STATUS=$status
+EOF
+}
+
 # Extract information from JSON
 model_name=$(extract_value ".model.display_name")
 model_id=$(extract_value ".model.id")
@@ -66,32 +113,43 @@ else
     project_name="no-project"
 fi
 
-# Get git branch info
+# Get git branch info with caching
 git_branch=""
 git_status=""
 if [[ -n "$current_dir" ]]; then
-    # Check if we're in a git repository
-    if [[ -d "$current_dir/.git" ]] || git -C "$current_dir" rev-parse --git-dir >/dev/null 2>&1; then
-        branch=$(git -C "$current_dir" branch --show-current 2>/dev/null)
-        if [[ -n "$branch" ]]; then
-            git_branch="$branch"
-            
-            # Check for uncommitted changes
-            if [[ -n $(git -C "$current_dir" status --porcelain 2>/dev/null) ]]; then
-                git_status="*"
-            fi
-            
-            # Check if ahead/behind remote
-            if git -C "$current_dir" rev-parse --abbrev-ref @{u} >/dev/null 2>&1; then
-                ahead=$(git -C "$current_dir" rev-list --count @{u}..HEAD 2>/dev/null)
-                behind=$(git -C "$current_dir" rev-list --count HEAD..@{u} 2>/dev/null)
-                
-                if [[ "$ahead" -gt 0 ]]; then
-                    git_status="${git_status}↑${ahead}"
+    # Try to read from cache first
+    cache_data=$(read_cache "$current_dir")
+    if [[ $? -eq 0 ]]; then
+        # Use cached data
+        git_branch=$(echo "$cache_data" | grep "^BRANCH=" | cut -d'=' -f2-)
+        git_status=$(echo "$cache_data" | grep "^STATUS=" | cut -d'=' -f2-)
+    else
+        # Cache miss or stale - run git commands
+        if [[ -d "$current_dir/.git" ]] || git -C "$current_dir" rev-parse --git-dir >/dev/null 2>&1; then
+            branch=$(git -C "$current_dir" branch --show-current 2>/dev/null)
+            if [[ -n "$branch" ]]; then
+                git_branch="$branch"
+
+                # Check for uncommitted changes
+                if [[ -n $(git -C "$current_dir" status --porcelain 2>/dev/null) ]]; then
+                    git_status="*"
                 fi
-                if [[ "$behind" -gt 0 ]]; then
-                    git_status="${git_status}↓${behind}"
+
+                # Check if ahead/behind remote
+                if git -C "$current_dir" rev-parse --abbrev-ref @{u} >/dev/null 2>&1; then
+                    ahead=$(git -C "$current_dir" rev-list --count @{u}..HEAD 2>/dev/null)
+                    behind=$(git -C "$current_dir" rev-list --count HEAD..@{u} 2>/dev/null)
+
+                    if [[ "$ahead" -gt 0 ]]; then
+                        git_status="${git_status}↑${ahead}"
+                    fi
+                    if [[ "$behind" -gt 0 ]]; then
+                        git_status="${git_status}↓${behind}"
+                    fi
                 fi
+
+                # Write to cache
+                write_cache "$current_dir" "$git_branch" "$git_status"
             fi
         fi
     fi
