@@ -34,8 +34,8 @@ Create a new git worktree with an auto-generated branch name that tracks the rem
 2. Determine the default remote branch:
    - First, try `git remote show origin | grep "HEAD branch"` to find the repository's default branch name
    - Verify the branch exists in remote with `git branch -r`
-   - If the default branch doesn't exist remotely, look for origin/main then origin/master in available remote branches
-   - If neither exists, use the first available remote branch or fail with a clear error
+   - If the default branch doesn't exist remotely or cannot be determined, check for origin/main, then origin/master
+   - If neither exists, fail with a clear error message: "Unable to determine default remote branch. Please ensure origin/main or origin/master exists."
 3. List existing worktree branches: `git branch --list 'worktree*'`
 4. Determine next available number:
    - Parse the branch names to find the highest number used
@@ -44,9 +44,9 @@ Create a new git worktree with an auto-generated branch name that tracks the rem
 5. Create the worktree tracking the remote branch:
    - Use: `git worktree add --track -b worktreeN ../worktreeN origin/branch-name`
    - This creates the branch, sets up tracking, and creates the worktree directory
-   - The -b flag creates a new branch
-   - The --track flag is used explicitly for clarity (tracking is automatic when the start-point is a remote branch, but this makes the intent explicit)
-   - Specifying origin/branch-name as the starting point sets the branch to that commit
+   - The -b flag creates a new branch named worktreeN
+   - The --track flag ensures upstream tracking is configured
+   - Specifying origin/branch-name as the starting point sets the branch to that commit and configures the upstream
 6. Display success message with:
    - The new branch name (worktreeN)
    - The absolute path to the worktree
