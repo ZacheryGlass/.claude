@@ -58,3 +58,4 @@ __pycache__/
 history.jsonl
 debug/
 file-history/
+/.statusline_cache
