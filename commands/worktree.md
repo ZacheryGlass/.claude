@@ -42,14 +42,16 @@ Create a new git worktree with an auto-generated branch name that tracks the rem
    - Use the next sequential number (e.g., if worktree1 exists, use worktree2)
    - If no worktree branches exist, start with worktree1
 5. Create the worktree tracking the remote branch:
-   - Use: `git worktree add -b worktreeN ../worktreeN origin/branch-name`
+   - Use: `git worktree add --track -b worktreeN ../worktreeN origin/branch-name`
    - This creates the branch, sets up tracking, and creates the worktree directory
    - The -b flag creates a new branch
-   - Specifying origin/branch-name as the starting point automatically sets up tracking
+   - The --track flag explicitly sets up tracking (this is usually automatic when using a remote branch)
+   - Specifying origin/branch-name as the starting point sets the branch to that commit
 6. Display success message with:
    - The new branch name (worktreeN)
    - The absolute path to the worktree
    - The upstream tracking branch (origin/main or origin/master)
+   - Confirmation that tracking is set up correctly
 
 **Examples:**
 - `/worktree` - Creates worktree1 at ../worktree1 tracking origin/main (or origin/master)
