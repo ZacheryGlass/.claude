@@ -1,7 +1,7 @@
 ---
-allowed-tools: Bash(git:*), Bash(mkdir:*), Bash(ls:*), Bash(pwd:*)
-description: Create a new git worktree from the current repository
-argument-hint: [branch-name] [path]
+allowed-tools: Bash(git:*)
+description: Create a new git worktree that tracks the remote default branch
+argument-hint: (no arguments needed)
 ---
 
 # Git Worktree Command
@@ -12,35 +12,51 @@ Current repository info: !`git remote get-url origin 2>/dev/null || echo "No rem
 
 Current branch: !`git branch --show-current`
 
-Current commit: !`git rev-parse HEAD`
+Existing worktrees: !`git worktree list`
 
-Current working directory: !`pwd`
+Existing branches: !`git branch --list 'worktree*'`
+
+Default remote branch: !`git remote show origin 2>/dev/null | grep "HEAD branch" | cut -d: -f2 | xargs || echo "master"`
 
 ## Your task
 
-Create a new git worktree based on the arguments provided.
-
-Arguments: $ARGUMENTS
-
-**Expected format:**
-- `[branch-name]`: Optional branch name for the new worktree (defaults to current branch name + timestamp)
-- `[path]`: Optional path where to create the worktree (defaults to ../repo-name-branch-name)
+Create a new git worktree with an auto-generated branch name that tracks the remote default branch.
 
 **Behavior:**
-1. If no arguments provided: create worktree at current commit with auto-generated branch name in ../repo-name-branch-timestamp directory
-2. If only branch name provided: create worktree at current commit with specified branch name
-3. If both branch and path provided: create worktree at current commit with specified branch name and path
-4. Always creates worktree at the exact commit that is currently checked out
-5. Create the worktree directory if it doesn't exist
+1. Determine the default remote branch (origin/main or origin/master)
+2. Find all existing branches named `worktree*` to determine the next available number
+3. Create a new branch named `worktreeN` where N is the next sequential number (starting at 1)
+4. Create the worktree at a path like `../worktreeN` 
+5. Set the new local branch to track the remote default branch as upstream
 
 **Process:**
-1. Get current commit SHA
-2. Determine branch name (use argument or auto-generate from current branch + timestamp)
-3. Determine the target path for the worktree
-4. Create the worktree at current commit using `git worktree add -b <new-branch> <path> HEAD`
-5. Display success message with path to new worktree
+1. Fetch latest changes from remote: `git fetch origin`
+2. Determine the default remote branch:
+   - First, try `git remote show origin | grep "HEAD branch"` to find the repository's default branch name
+   - Verify the branch exists in remote with `git branch -r`
+   - If the default branch doesn't exist remotely, look for origin/main then origin/master in available remote branches
+   - If neither exists, use the first available remote branch or fail with a clear error
+3. List existing worktree branches: `git branch --list 'worktree*'`
+4. Determine next available number:
+   - Parse the branch names to find the highest number used
+   - Use the next sequential number (e.g., if worktree1 exists, use worktree2)
+   - If no worktree branches exist, start with worktree1
+5. Create the worktree tracking the remote branch:
+   - Use: `git worktree add -b worktreeN ../worktreeN origin/branch-name`
+   - This creates the branch, sets up tracking, and creates the worktree directory
+   - The -b flag creates a new branch
+   - Specifying origin/branch-name as the starting point automatically sets up tracking
+6. Display success message with:
+   - The new branch name (worktreeN)
+   - The absolute path to the worktree
+   - The upstream tracking branch (origin/main or origin/master)
 
 **Examples:**
-- `/worktree` - Creates worktree at current commit with auto-generated branch at ../repo-name-branch-timestamp
-- `/worktree feature-branch` - Creates worktree at current commit with branch 'feature-branch'
-- `/worktree feature-branch ../feature-worktree` - Creates worktree at current commit in specified path
+- `/worktree` - Creates worktree1 at ../worktree1 tracking origin/main (or origin/master)
+- `/worktree` (when worktree1 exists) - Creates worktree2 at ../worktree2 tracking origin/main (or origin/master)
+
+**Important Notes:**
+- The command takes NO arguments - branch names are always auto-generated
+- The new branch always tracks the remote default branch (origin/main or origin/master)
+- Each worktree gets a numbered branch name starting from 1
+- The worktree directory is created in the parent directory of the current repository
