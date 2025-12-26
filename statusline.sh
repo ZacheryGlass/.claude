@@ -3,18 +3,12 @@
 # Read Claude Code context from stdin
 input=$(cat)
 
-# Path to jq executable
-JQ="$HOME/.claude/bin/jq.exe"
-
 # Cache settings
 CACHE_FILE="$HOME/.claude/.statusline_cache"
 CACHE_TTL=300  # 5 minutes in seconds
 
-# Check if jq exists, fallback to system jq or basic parsing
-if [[ -f "$JQ" ]]; then
-    # Use local jq
-    jq_cmd="$JQ"
-elif command -v jq >/dev/null 2>&1; then
+# Check if jq exists, fallback to basic parsing
+if command -v jq >/dev/null 2>&1; then
     # Use system jq
     jq_cmd="jq"
 else
@@ -31,17 +25,6 @@ extract_value() {
         # Basic fallback parsing
         local key="${path##*.}"
         echo "$input" | grep -o "\"$key\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | sed 's/.*"[^"]*"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' | head -1
-    fi
-}
-
-extract_number() {
-    local path="$1"
-    if [[ -n "$jq_cmd" ]]; then
-        echo "$input" | "$jq_cmd" -r "$path // empty" 2>/dev/null
-    else
-        # Basic fallback for numbers
-        local key="${path##*.}"
-        echo "$input" | grep -o "\"$key\"[[:space:]]*:[[:space:]]*[0-9.]*" | sed 's/.*"[^"]*"[[:space:]]*:[[:space:]]*\([0-9.]*\).*/\1/' | head -1
     fi
 }
 
@@ -90,10 +73,8 @@ EOF
 
 # Extract information from JSON
 model_name=$(extract_value ".model.display_name")
-model_id=$(extract_value ".model.id")
 current_dir=$(extract_value ".workspace.current_dir")
 project_dir=$(extract_value ".workspace.project_dir")
-transcript_path=$(extract_value ".transcript_path")
 
 
 # Default model name if not found
