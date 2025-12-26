@@ -16,7 +16,7 @@ Existing worktrees: !`git worktree list`
 
 Existing branches: !`git branch --list 'worktree*'`
 
-Default remote branch: !`git remote show origin 2>/dev/null | grep "HEAD branch" | cut -d: -f2 | xargs || echo "master"`
+Default remote branch: !`git remote show origin 2>/dev/null | grep "HEAD branch" | cut -d: -f2 | xargs || git branch -r | grep -E 'origin/(main|master)' | head -1 | sed 's/.*origin\///'`
 
 ## Your task
 
@@ -45,7 +45,7 @@ Create a new git worktree with an auto-generated branch name that tracks the rem
    - Use: `git worktree add --track -b worktreeN ../worktreeN origin/branch-name`
    - This creates the branch, sets up tracking, and creates the worktree directory
    - The -b flag creates a new branch
-   - The --track flag explicitly sets up tracking (this is usually automatic when using a remote branch)
+   - The --track flag is used explicitly for clarity (tracking is automatic when the start-point is a remote branch, but this makes the intent explicit)
    - Specifying origin/branch-name as the starting point sets the branch to that commit
 6. Display success message with:
    - The new branch name (worktreeN)
