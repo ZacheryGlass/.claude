@@ -90,7 +90,16 @@ def main():
         input_data = json.load(sys.stdin)
         tool_name = input_data.get('tool_name', '')
         tool_input = input_data.get('tool_input', {})
-        
+        cwd = input_data.get('cwd', '')
+
+        # Exception: Skip checks if we're in the ~/.claude/ directory
+        # This is the only directory where "claude" is allowed in paths
+        import os
+        claude_dir = os.path.expanduser('~/.claude').replace('\\', '/')
+        current_dir = cwd.replace('\\', '/')
+        if current_dir.startswith(claude_dir):
+            sys.exit(0)  # Allow all commands in ~/.claude/
+
         # Handle both Bash commands and MCP git tools
         if tool_name == 'Bash':
             command = tool_input.get('command', '')
