@@ -37,6 +37,7 @@ docs/
 projects/
 ide/
 plans/
+plugins/cache/
 
 # Local development
 local/
