@@ -61,3 +61,6 @@ history.jsonl
 debug/
 file-history/
 /.statusline_cache
+plugins/install-counts-cache.json
+stats-cache.json
+plugins/installed_plugins.json
