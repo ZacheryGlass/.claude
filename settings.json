@@ -98,7 +98,7 @@
     ],
     "defaultMode": "acceptEdits"
   },
-  "model": "opus",
+  "model": "opusplan",
   "hooks": {
     "PreToolUse": [
       {
@@ -106,11 +106,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "py -3 \"%USERPROFILE%\\.claude\\hooks\\clean_commit_guard.py\""
+            "command": "python ~/.claude/hooks/clean_commit_guard.py"
           },
           {
             "type": "command",
-            "command": "py -3 \"%USERPROFILE%\\.claude\\hooks\\github_issue_guard.py\""
+            "command": "python ~/.claude/hooks/github_issue_guard.py"
           }
         ]
       },
@@ -119,7 +119,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "py -3 \"%USERPROFILE%\\.claude\\hooks\\protect_claude_md.py\""
+            "command": "python ~/.claude/hooks/protect_claude_md.py"
           }
         ]
       },
@@ -128,7 +128,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "py -3 \"%USERPROFILE%\\.claude\\hooks\\clean_commit_guard.py\""
+            "command": "python ~/.claude/hooks/clean_commit_guard.py"
           }
         ]
       },
@@ -137,7 +137,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "py -3 \"%USERPROFILE%\\.claude\\hooks\\github_issue_guard.py\""
+            "command": "python ~/.claude/hooks/github_issue_guard.py"
           }
         ]
       }
@@ -148,7 +148,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "py -3 \"%USERPROFILE%\\.claude\\hooks\\emoji_remover.py\""
+            "command": "python ~/.claude/hooks/emoji_remover.py"
           }
         ]
       }
