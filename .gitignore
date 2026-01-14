@@ -64,3 +64,5 @@ file-history/
 plugins/install-counts-cache.json
 stats-cache.json
 plugins/installed_plugins.json
+bin/
+tmpclaude-*

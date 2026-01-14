@@ -98,7 +98,7 @@
     ],
     "defaultMode": "acceptEdits"
   },
-  "model": "opusplan",
+  "model": "opus",
   "hooks": {
     "PreToolUse": [
       {
@@ -106,11 +106,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python ~/.claude/hooks/clean_commit_guard.py"
+            "command": "powershell -NoProfile -Command \"py $env:USERPROFILE\\.claude\\hooks\\clean_commit_guard.py\""
           },
           {
             "type": "command",
-            "command": "python ~/.claude/hooks/github_issue_guard.py"
+            "command": "powershell -NoProfile -Command \"py $env:USERPROFILE\\.claude\\hooks\\github_issue_guard.py\""
           }
         ]
       },
@@ -119,7 +119,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python ~/.claude/hooks/protect_claude_md.py"
+            "command": "powershell -NoProfile -Command \"py $env:USERPROFILE\\.claude\\hooks\\protect_claude_md.py\""
           }
         ]
       },
@@ -128,7 +128,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python ~/.claude/hooks/clean_commit_guard.py"
+            "command": "powershell -NoProfile -Command \"py $env:USERPROFILE\\.claude\\hooks\\clean_commit_guard.py\""
           }
         ]
       },
@@ -137,7 +137,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python ~/.claude/hooks/github_issue_guard.py"
+            "command": "powershell -NoProfile -Command \"py $env:USERPROFILE\\.claude\\hooks\\github_issue_guard.py\""
           }
         ]
       }
@@ -148,7 +148,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python ~/.claude/hooks/emoji_remover.py"
+            "command": "powershell -NoProfile -Command \"py $env:USERPROFILE\\.claude\\hooks\\emoji_remover.py\""
           }
         ]
       }
@@ -156,7 +156,8 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "bash ~/.claude/statusline.sh"
+    "command": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& $env:USERPROFILE\\.claude\\statusline.ps1\""
   },
-  "alwaysThinkingEnabled": true
+  "alwaysThinkingEnabled": true,
+  "autoUpdatesChannel": "latest"
 }
