@@ -156,7 +156,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& $env:USERPROFILE\\.claude\\statusline.ps1\""
+    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"%USERPROFILE%\\.claude\\statusline.ps1\""
   },
   "alwaysThinkingEnabled": true,
   "autoUpdatesChannel": "latest"
