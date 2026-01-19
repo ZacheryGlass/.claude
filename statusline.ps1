@@ -104,9 +104,9 @@ if ($currentDir -and (Test-Path (Join-Path $currentDir ".git"))) {
 $ESC = [char]27
 $ctxDisplay = ""
 if ($usedPct -and $usedPct -ne "null") {
-    $pct = [math]::Min([math]::Round($usedPct), 100)
-    $color = if ($pct -lt 50) { "32" } elseif ($pct -lt 80) { "33" } else { "31" }
-    $ctxDisplay = "$ESC[${color}m$pct% Context$ESC[0m"
+    $pct = [math]::Max([math]::Round(100 - $usedPct), 0)
+    $color = if ($pct -gt 50) { "32" } elseif ($pct -gt 20) { "33" } else { "31" }
+    $ctxDisplay = "$ESC[${color}m$pct% Remaining$ESC[0m"
 }
 
 # Build output with emojis (use ConvertFromUtf32 for chars above U+FFFF)
