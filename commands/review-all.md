@@ -20,11 +20,17 @@ Inject git context into agents using the appropriate diff command from above.
 
 ## Execution
 
-**CRITICAL**: Launch all three agents simultaneously in parallel using a single message with multiple Task tool calls:
+**CRITICAL**: Launch all three agents simultaneously in parallel using a single message with multiple Task tool calls.
 
-1. **structural-completeness-reviewer** - Check implementation completeness, missing edge cases, incomplete error handling
-2. **performance-profiler** - Analyze performance bottlenecks, memory usage, optimization opportunities
-3. **bug-finder** - Hunt for logical errors, race conditions, unhandled edge cases
+Use these EXACT `subagent_type` values (do NOT substitute other agent types):
+
+| subagent_type | Purpose |
+|---------------|---------|
+| `structural-completeness-reviewer` | Check implementation completeness, missing edge cases, incomplete error handling |
+| `performance-profiler` | Analyze performance bottlenecks, memory usage, optimization opportunities |
+| `bug-finder` | Hunt for logical errors, race conditions, unhandled edge cases |
+
+**DO NOT** use `architecture-reviewer` or any other agent as a substitute. The exact subagent_type strings above are required.
 
 Pass the analysis target (file paths or git diff output) to each agent with clear instructions to perform report-only analysis without making changes.
 
