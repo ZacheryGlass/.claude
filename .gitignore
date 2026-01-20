@@ -67,3 +67,4 @@ plugins/installed_plugins.json
 bin/
 tmpclaude-*
 plugins/known_marketplaces.json
+paste-cache/
