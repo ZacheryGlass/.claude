@@ -1,5 +1,6 @@
-# Set UTF-8 output encoding for emoji support
+# Set UTF-8 encoding for ANSI colors and Unicode support
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Read JSON from stdin
 $jsonInput = $input | Out-String
@@ -112,15 +113,11 @@ if ($usedPct -and $usedPct -ne "null") {
     $ctxDisplay = "$ESC[${color}m$pct% Remaining$ESC[0m"
 }
 
-# Build output with emojis (use ConvertFromUtf32 for chars above U+FFFF)
-$folder = [char]::ConvertFromUtf32(0x1F4C1)  # folder emoji
-$robot = [char]::ConvertFromUtf32(0x1F916)   # robot emoji
-$branch = [char]::ConvertFromUtf32(0x1F33F)  # herb/branch emoji
-
+# Build output (ASCII-only labels for cross-terminal portability)
 $components = @()
-$components += "$folder $projectName"
-$components += "$robot $modelName"
-if ($gitBranch) { $components += "$branch $gitBranch$gitStatus" }
+$components += $projectName
+$components += $modelName
+if ($gitBranch) { $components += "$gitBranch$gitStatus" }
 if ($ctxDisplay) { $components += $ctxDisplay }
 
 Write-Output ($components -join " | ")
