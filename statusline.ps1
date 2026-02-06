@@ -1,3 +1,6 @@
+# Set UTF-8 output encoding for emoji support
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
 # Read JSON from stdin
 $jsonInput = $input | Out-String
 if (-not $jsonInput) { return }
