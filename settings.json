@@ -79,10 +79,6 @@
       "Bash(git --no-pager:*)"
     ],
     "ask": [
-      "Bash(python:*)",
-      "Bash(py:*)",
-      "Bash(py --version)",
-      "Bash(where python)",
       "Bash(rm:*)",
       "Bash(mv:*)",
       "Bash(cp:*)",
@@ -97,9 +93,8 @@
       "Bash(git push:*)",
       "Bash(git pull:*)"
     ],
-    "defaultMode": "acceptEdits"
+    "defaultMode": "dontAsk"
   },
-  "model": "opus",
   "hooks": {
     "PreToolUse": [
       {
@@ -157,8 +152,10 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"%USERPROFILE%\\.claude\\statusline.ps1\""
+    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File ~/.claude/statusline.ps1"
   },
   "alwaysThinkingEnabled": true,
-  "autoUpdatesChannel": "latest"
+  "autoUpdatesChannel": "latest",
+  "skipDangerousModePermissionPrompt": true,
+  "model": "opus"
 }
