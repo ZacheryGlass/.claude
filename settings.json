@@ -94,6 +94,7 @@
     ],
     "defaultMode": "dontAsk"
   },
+  "model": "opus",
   "hooks": {
     "PreToolUse": [
       {
@@ -101,11 +102,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cmd /c py \"%USERPROFILE%\\.claude\\hooks\\clean_commit_guard.py\""
+            "command": "py -c \"import os,sys,runpy;runpy.run_path(os.path.expanduser('~/.claude/hooks/'+sys.argv[1]),run_name='__main__')\" clean_commit_guard.py"
           },
           {
             "type": "command",
-            "command": "cmd /c py \"%USERPROFILE%\\.claude\\hooks\\github_issue_guard.py\""
+            "command": "py -c \"import os,sys,runpy;runpy.run_path(os.path.expanduser('~/.claude/hooks/'+sys.argv[1]),run_name='__main__')\" github_issue_guard.py"
           }
         ]
       },
@@ -114,7 +115,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cmd /c py \"%USERPROFILE%\\.claude\\hooks\\protect_claude_md.py\""
+            "command": "py -c \"import os,sys,runpy;runpy.run_path(os.path.expanduser('~/.claude/hooks/'+sys.argv[1]),run_name='__main__')\" protect_claude_md.py"
           }
         ]
       },
@@ -123,7 +124,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cmd /c py \"%USERPROFILE%\\.claude\\hooks\\clean_commit_guard.py\""
+            "command": "py -c \"import os,sys,runpy;runpy.run_path(os.path.expanduser('~/.claude/hooks/'+sys.argv[1]),run_name='__main__')\" clean_commit_guard.py"
           }
         ]
       },
@@ -132,7 +133,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cmd /c py \"%USERPROFILE%\\.claude\\hooks\\github_issue_guard.py\""
+            "command": "py -c \"import os,sys,runpy;runpy.run_path(os.path.expanduser('~/.claude/hooks/'+sys.argv[1]),run_name='__main__')\" github_issue_guard.py"
           }
         ]
       }
@@ -143,7 +144,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cmd /c py \"%USERPROFILE%\\.claude\\hooks\\emoji_remover.py\""
+            "command": "py -c \"import os,sys,runpy;runpy.run_path(os.path.expanduser('~/.claude/hooks/'+sys.argv[1]),run_name='__main__')\" emoji_remover.py"
           }
         ]
       }
@@ -151,10 +152,9 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "cmd /c powershell -NoProfile -ExecutionPolicy Bypass -File \"%USERPROFILE%\\.claude\\statusline.ps1\""
+    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File ~/.claude/statusline.ps1"
   },
   "alwaysThinkingEnabled": true,
   "autoUpdatesChannel": "latest",
-  "skipDangerousModePermissionPrompt": true,
-  "model": "opus"
+  "skipDangerousModePermissionPrompt": true
 }
