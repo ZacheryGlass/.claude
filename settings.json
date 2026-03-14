@@ -86,8 +86,7 @@
       "Bash(az:*)",
       "Bash(git push:*)",
       "Bash(git pull:*)"
-    ],
-    "defaultMode": "dontAsk"
+    ]
   },
   "hooks": {
     "PreToolUse": [
@@ -150,5 +149,6 @@
   },
   "effortLevel": "high",
   "autoUpdatesChannel": "latest",
-  "skipDangerousModePermissionPrompt": true
+  "skipDangerousModePermissionPrompt": true,
+  "model": "sonnet"
 }
