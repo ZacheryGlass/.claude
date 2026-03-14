@@ -1,7 +1,7 @@
 ---
 allowed-tools: Bash(git add:*), Bash(git status:*), Bash(git commit:*), Bash(git diff:*)
 argument-hint: [description] | [multi-commit request]
-description: Create intelligent git commits based on conversation context
+description: Create intelligent conventional commits based on conversation context
 model: haiku
 ---
 
@@ -14,7 +14,7 @@ model: haiku
 
 ## Your Task
 
-Create git commit(s) intelligently based on the request and conversation context.
+Create conventional git commit(s) intelligently based on the request and conversation context.
 
 ### Behavior Based on Arguments
 
@@ -40,13 +40,37 @@ Create git commit(s) intelligently based on the request and conversation context
 2. **Stage selectively** - Use `git add` to stage only the relevant files for each commit
 3. **Use conversation history** - Look at recent messages to understand what we've been working on
 4. **Ask when ambiguous** - If it's unclear what to commit, ask the user
-5. **Simple messages** - Write clear, descriptive commit messages (not conventional format)
+5. **Conventional format required** - All commits MUST follow conventional commit format
 
-### Commit Message Guidelines
+### Conventional Commit Format
 
+**Required format**: `type(scope): subject`
+
+**Common types:**
+- `feat`: New feature
+- `fix`: Bug fix
+- `refactor`: Code refactoring (no functional changes)
+- `docs`: Documentation changes
+- `chore`: Maintenance tasks, tooling, configs
+- `test`: Test changes
+- `style`: Code formatting, whitespace
+- `perf`: Performance improvements
+
+**Scope guidelines:**
+- Use file/directory name or feature area
+- Examples: `skills`, `commands`, `hooks`, `agents`
+- Keep it short and meaningful
+
+**Subject guidelines:**
+- Use imperative mood (e.g., "add feature" not "added feature")
+- Don't capitalize first letter
+- No period at the end
 - Be concise but descriptive
-- Focus on "why" and "what" changed
-- Use imperative mood (e.g., "Add feature" not "Added feature")
-- Follow the project's existing commit message style from git log
 - Never include metrics (e.g., "100x improvement", "removed 350 lines", "180% faster")
 - Avoid sales pitch language - focus on what changed, not how impressive it is
+
+**Examples:**
+- `feat(commands): add conversation-aware commit logic`
+- `refactor(skills): restructure skill-creator into subdirectory`
+- `fix(hooks): prevent duplicate execution on commit`
+- `chore(deps): update python dependencies`
