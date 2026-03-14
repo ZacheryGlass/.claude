@@ -1,9 +1,7 @@
 {
   "env": {
-    "DISABLE_BUG_COMMAND": "1",
     "DISABLE_TELEMETRY": "1",
-    "CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL": "1",
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+    "CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL": "1"
   },
   "includeCoAuthoredBy": false,
   "permissions": {
@@ -71,12 +69,10 @@
       "Bash(git stash:*)",
       "Bash(git merge:*)",
       "Bash(git rebase:*)",
-      "Bash(git -c core.editor=true rebase --continue)"
+      "Bash(git -c core.editor=true rebase --continue)",
+      "Bash(aws:*)"
     ],
-    "deny": [
-      "Bash(git -C:*)",
-      "Bash(git --no-pager:*)"
-    ],
+    "deny": [],
     "ask": [
       "Bash(rm:*)",
       "Bash(mv:*)",
@@ -86,7 +82,6 @@
       "Bash(sudo:*)",
       "Bash(docker:*)",
       "Bash(kubectl:*)",
-      "Bash(aws:*)",
       "Bash(gcloud:*)",
       "Bash(az:*)",
       "Bash(git push:*)",
@@ -94,7 +89,6 @@
     ],
     "defaultMode": "dontAsk"
   },
-  "model": "opus",
   "hooks": {
     "PreToolUse": [
       {
@@ -154,7 +148,7 @@
     "type": "command",
     "command": "powershell -NoProfile -ExecutionPolicy Bypass -File ~/.claude/statusline.ps1"
   },
-  "alwaysThinkingEnabled": true,
+  "effortLevel": "high",
   "autoUpdatesChannel": "latest",
   "skipDangerousModePermissionPrompt": true
 }
