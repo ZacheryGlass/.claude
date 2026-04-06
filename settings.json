@@ -1,7 +1,8 @@
 {
   "env": {
     "DISABLE_TELEMETRY": "1",
-    "CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL": "1"
+    "CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL": "1",
+    "ENABLE_TOOL_SEARCH": "true"
   },
   "includeCoAuthoredBy": false,
   "permissions": {
@@ -88,15 +89,12 @@
       "Bash(git pull:*)"
     ]
   },
+  "model": "sonnet",
   "hooks": {
     "PreToolUse": [
       {
         "matcher": "Bash",
         "hooks": [
-          {
-            "type": "command",
-            "command": "py -c \"import os,sys,runpy;runpy.run_path(os.path.expanduser('~/.claude/hooks/'+sys.argv[1]),run_name='__main__')\" clean_commit_guard.py"
-          },
           {
             "type": "command",
             "command": "py -c \"import os,sys,runpy;runpy.run_path(os.path.expanduser('~/.claude/hooks/'+sys.argv[1]),run_name='__main__')\" github_issue_guard.py"
@@ -147,8 +145,33 @@
     "type": "command",
     "command": "powershell -NoProfile -ExecutionPolicy Bypass -File ~/.claude/statusline.ps1"
   },
-  "effortLevel": "high",
+  "enabledPlugins": {
+    "data@knowledge-work-plugins": false,
+    "superpowers@claude-plugins-official": false,
+    "code-review@claude-plugins-official": false,
+    "clangd-lsp@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "knowledge-work-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/knowledge-work-plugins"
+      }
+    },
+    "claude-code-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-code"
+      }
+    },
+    "claude-plugins-official": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/anthropics/claude-plugins-official.git"
+      }
+    }
+  },
+  "effortLevel": "medium",
   "autoUpdatesChannel": "latest",
-  "skipDangerousModePermissionPrompt": true,
-  "model": "sonnet"
+  "skipDangerousModePermissionPrompt": true
 }
