@@ -73,3 +73,4 @@ plugins/known_marketplaces.json
 paste-cache/
 tasks/
 teams/
+cache/
