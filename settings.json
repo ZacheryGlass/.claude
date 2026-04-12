@@ -73,21 +73,13 @@
       "Bash(git -c core.editor=true rebase --continue)",
       "Bash(aws:*)"
     ],
-    "deny": [],
-    "ask": [
-      "Bash(cp:*)",
-      "Bash(curl:*)",
-      "Bash(wget:*)",
-      "Bash(sudo:*)",
-      "Bash(docker:*)",
-      "Bash(kubectl:*)",
-      "Bash(gcloud:*)",
-      "Bash(az:*)",
+    "deny": [
       "Bash(git push:*)",
       "Bash(git pull:*)"
-    ]
+    ],
+    "ask": []
   },
-  "model": "haiku",
+  "model": "opus",
   "hooks": {
     "PreToolUse": [
       {
