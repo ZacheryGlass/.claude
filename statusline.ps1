@@ -57,7 +57,7 @@ STATUS=$status
 $modelName = if ($data.model.display_name) { $data.model.display_name } else { "Claude" }
 $currentDir = $data.workspace.current_dir
 $projectDir = $data.workspace.project_dir
-$usedPct = $data.context_window.used_percentage
+$remPct = $data.context_window.remaining_percentage
 
 # Get project name from path
 $projectName = if ($projectDir) {
@@ -106,8 +106,8 @@ if ($currentDir -and (Test-Path (Join-Path $currentDir ".git"))) {
 # Context percentage with ANSI color
 $ESC = [char]27
 $ctxDisplay = ""
-if ($usedPct -and $usedPct -ne "null") {
-    $pct = [math]::Max([math]::Round(100 - $usedPct), 0)
+if ($null -ne $remPct) {
+    $pct = [math]::Max([math]::Round($remPct), 0)
     $color = if ($pct -gt 50) { "32" } elseif ($pct -gt 20) { "33" } else { "31" }
     $ctxDisplay = "$ESC[${color}m$pct% Remaining$ESC[0m"
 }
