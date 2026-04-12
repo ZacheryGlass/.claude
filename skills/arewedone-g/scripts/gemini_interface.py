@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -14,7 +15,9 @@ def main():
     parser.add_argument("--system-md", help="Path to a markdown file to prepend as system instructions")
     parser.add_argument("--context-file", help="Path to a file containing additional context")
     parser.add_argument("--cwd", help="Working directory for the Gemini CLI")
-    parser.add_argument("--model", default="gemini-3.1-pro-preview", help="Gemini model to use")
+    parser.add_argument("--model", default="gemini-3.1-pro-preview", help="Gemini model to use (default: gemini-3.1-pro-preview)")
+    parser.add_argument("--verbose", action="store_true",
+                        help="Stream all output including intermediate tool call logs (default: final response only)")
 
     args = parser.parse_args()
 
@@ -36,8 +39,10 @@ def main():
         # @ syntax attaches file content to the prompt in Gemini CLI
         full_prompt += f"\n\nContext file: @{context_path}"
 
+    output_format = "text" if args.verbose else "stream-json"
+
     # -p = non-interactive (headless) mode; --approval-mode=plan = read-only tools only
-    cmd = ["gemini.cmd", "-p", full_prompt, "--approval-mode=plan", "-o", "text", "-m", args.model]
+    cmd = ["gemini.cmd", "-p", full_prompt, "--approval-mode=plan", "-o", output_format, "-m", args.model]
 
     process = subprocess.Popen(
         cmd,
@@ -51,9 +56,28 @@ def main():
     )
     process.stdin.close()
 
-    for line in process.stdout:
-        print(line, end="")
-        sys.stdout.flush()
+    if not args.verbose:
+        for line in process.stdout:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue  # Drop non-JSON lines (e.g., [ERROR] IDE messages, retry logs)
+
+            if event.get("type") == "message" and event.get("role") == "assistant":
+                content = event.get("content", "")
+                if content:
+                    print(content, end="", flush=True)
+            elif event.get("type") == "result" and event.get("status") == "error":
+                error = event.get("error", {}).get("message", "Unknown error")
+                print(f"\n[Gemini error: {error}]", file=sys.stderr)
+        print()  # Trailing newline after streamed content
+    else:
+        for line in process.stdout:
+            print(line, end="")
+            sys.stdout.flush()
 
     process.wait()
     sys.exit(process.returncode)
