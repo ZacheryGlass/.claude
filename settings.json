@@ -79,7 +79,7 @@
     ],
     "ask": []
   },
-  "model": "opus",
+  "model": "opusplan",
   "hooks": {
     "PreToolUse": [
       {
