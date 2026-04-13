@@ -6,7 +6,7 @@ import sys
 
 
 def main():
-    # Fix Windows console encoding — Gemini outputs emoji (✅, ❌) which cp1252 can't handle
+    # Fix Windows console encoding — Gemini outputs emoji (✅, ⏹) which cp1252 can't handle
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -42,7 +42,7 @@ def main():
     output_format = "text" if args.verbose else "stream-json"
 
     # -p = non-interactive (headless) mode; --approval-mode=plan = read-only tools only
-    cmd = ["gemini", "-p", full_prompt, "--approval-mode=plan", "-o", output_format, "-m", args.model]
+    cmd = ["gemini.cmd", "-p", full_prompt, "--approval-mode=plan", "-o", output_format, "-m", args.model]
 
     process = subprocess.Popen(
         cmd,
@@ -63,16 +63,30 @@ def main():
                 continue
             try:
                 event = json.loads(line)
+                if not isinstance(event, dict):
+                    continue  # Ignore valid JSON primitives (e.g. string/int from a log line)
             except json.JSONDecodeError:
                 continue  # Drop non-JSON lines (e.g., [ERROR] IDE messages, retry logs)
 
             if event.get("type") == "message" and event.get("role") == "assistant":
                 content = event.get("content", "")
+                
+                # Safely handle if content is a list of parts instead of a string
+                if isinstance(content, list):
+                    text_parts = [p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"]
+                    content = "".join(text_parts)
+                elif not isinstance(content, str):
+                    content = str(content)
+                    
                 if content:
                     print(content, end="", flush=True)
             elif event.get("type") == "result" and event.get("status") == "error":
-                error = event.get("error", {}).get("message", "Unknown error")
-                print(f"\n[Gemini error: {error}]", file=sys.stderr)
+                error = event.get("error", {})
+                if isinstance(error, dict):
+                    error_msg = error.get("message", "Unknown error")
+                else:
+                    error_msg = str(error)
+                print(f"\n[Gemini error: {error_msg}]", file=sys.stderr)
         print()  # Trailing newline after streamed content
     else:
         for line in process.stdout:
