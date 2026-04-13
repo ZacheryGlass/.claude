@@ -55,6 +55,7 @@ STATUS=$status
 
 # Extract values with null coalescing
 $modelName = if ($data.model.display_name) { $data.model.display_name } else { "Claude" }
+$effortLabel = if ($data.model.effort) { "Effort: " + (Get-Culture).TextInfo.ToTitleCase($data.model.effort) } else { "" }
 $currentDir = $data.workspace.current_dir
 $projectDir = $data.workspace.project_dir
 $remPct = $data.context_window.remaining_percentage
@@ -120,6 +121,7 @@ $branch = [char]::ConvertFromUtf32(0x1F33F)  # herb/branch emoji
 $components = @()
 $components += "$folder $projectName"
 $components += "$robot $modelName"
+if ($effortLabel) { $components += $effortLabel }
 if ($gitBranch) { $components += "$branch $gitBranch$gitStatus" }
 if ($ctxDisplay) { $components += $ctxDisplay }
 
