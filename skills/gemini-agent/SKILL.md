@@ -34,15 +34,16 @@ python ~/.claude/skills/gemini-agent/scripts/gemini_interface.py \
 
 ## With a context file
 
-Attach file contents via Gemini's `@file` syntax:
+If you need Gemini to read a large existing file, attach it via the `--context-file` argument (which uses Gemini's `@file` syntax under the hood):
 
 ```bash
-echo "relevant context here" > /tmp/context.txt
 python ~/.claude/skills/gemini-agent/scripts/gemini_interface.py \
-  --prompt "Review the attached context." \
-  --context-file /tmp/context.txt \
+  --prompt "Review this file for security vulnerabilities." \
+  --context-file src/auth/login.py \
   --cwd "$(pwd)"
 ```
+
+*Note: For short context or summaries (a few sentences), do not create a temp file. Just include the context directly inside your `--prompt` string!*
 
 ## Options
 

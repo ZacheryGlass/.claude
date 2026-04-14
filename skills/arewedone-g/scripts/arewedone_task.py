@@ -34,23 +34,17 @@ def get_git_context():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--extra-context", help="Path to a file with Claude's summary of current work")
+    parser.add_argument("--summary", help="A summary of what was worked on")
     parser.add_argument("--model", default="gemini-3.1-pro-preview", help="Gemini model to use (default: gemini-3.1-pro-preview)")
     args = parser.parse_args()
 
     print("Collecting context...", file=sys.stderr)
     git_context = get_git_context()
 
-    extra = ""
-    if args.extra_context and os.path.exists(args.extra_context):
-        with open(args.extra_context, "r", encoding="utf-8") as f:
-            extra = f.read().strip()
-        print(f"Loaded context summary from: {args.extra_context}", file=sys.stderr)
-
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt", encoding="utf-8") as tmp:
-        if extra:
+        if args.summary:
             tmp.write("=== CONTEXT: WHAT WE'VE BEEN WORKING ON ===\n")
-            tmp.write(extra)
+            tmp.write(args.summary)
             tmp.write("\n\n")
         tmp.write("=== RECENT GIT CHANGES ===\n")
         tmp.write(git_context)
