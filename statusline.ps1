@@ -6,15 +6,12 @@ $jsonInput = $input | Out-String
 if (-not $jsonInput) { return }
 $data = $jsonInput | ConvertFrom-Json
 
-# Cache settings
-$cacheFile = "$env:USERPROFILE\.claude\.statusline_cache"
+# Cache settings (Per-session unique cache file)
+$cacheFile = "$env:USERPROFILE\.claude\.statusline_cache_$($data.session_id)"
 $cacheTTL = 300  # 5 minutes in seconds
 
-# Cache functions
-function Read-GitCache {
-    param([string]$dir)
-    if (-not (Test-Path $cacheFile)) { return $null }
-
+function Get-SessionCache {
+    if (-not (Test-Path $cacheFile)) { return @{} }
     try {
         $cache = @{}
         Get-Content $cacheFile | ForEach-Object {
@@ -22,40 +19,74 @@ function Read-GitCache {
                 $cache[$matches[1]] = $matches[2]
             }
         }
-
-        if ($cache['DIR'] -ne $dir) { return $null }
-
-        $cacheTime = [int64]$cache['TIME']
-        $currentTime = [int64](Get-Date -UFormat %s)
-        $age = $currentTime - $cacheTime
-
-        if ($age -gt $cacheTTL) { return $null }
-
-        return @{
-            Branch = $cache['BRANCH']
-            Status = $cache['STATUS']
-        }
+        return $cache
     } catch {
-        return $null
+        return @{}
     }
 }
 
-function Write-GitCache {
-    param([string]$dir, [string]$branch, [string]$status)
-    $currentTime = [int64](Get-Date -UFormat %s)
-    $tempFile = "$cacheFile.$$"
-    @"
-DIR=$dir
-TIME=$currentTime
-BRANCH=$branch
-STATUS=$status
-"@ | Set-Content -Path $tempFile -NoNewline
-    Move-Item -Path $tempFile -Destination $cacheFile -Force
+function Set-SessionCache {
+    param([hashtable]$cache)
+    try {
+        $tempFile = "$cacheFile.$PID"
+        $out = @()
+        foreach ($key in $cache.Keys) {
+            $out += "$key=$($cache[$key])"
+        }
+        ($out -join "`n") | Set-Content -Path $tempFile
+        Move-Item -Path $tempFile -Destination $cacheFile -Force
+
+        # -----------------------------------------------------------------
+        # Garbage Collection: Clean up old session files (older than 2 days)
+        # -----------------------------------------------------------------
+        Get-ChildItem "$env:USERPROFILE\.claude\.statusline_cache_*" -ErrorAction SilentlyContinue | 
+            Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-2) } | 
+            Remove-Item -ErrorAction SilentlyContinue
+    } catch {}
 }
+
+$cache = Get-SessionCache
+$cacheUpdated = $false
 
 # Extract values with null coalescing
 $modelName = if ($data.model.display_name) { $data.model.display_name } else { "Claude" }
-$effortLabel = if ($data.model.effort) { "Effort: " + (Get-Culture).TextInfo.ToTitleCase($data.model.effort) } else { "" }
+$isHaiku = ($modelName -match "(?i)haiku")
+
+# -----------------------------------------------------------------
+# Fast Effort Level Update
+# Checks the file modification time instead of parsing JSON every tick
+# -----------------------------------------------------------------
+$effortLabel = ""
+if (-not $isHaiku) {
+    $settingsPath = Join-Path $env:USERPROFILE ".claude\settings.json"
+    if (Test-Path $settingsPath) {
+        # Get file metadata (extremely fast, no disk I/O to read contents)
+        $settingsMTime = (Get-Item $settingsPath).LastWriteTimeUtc.Ticks.ToString()
+        
+        if ($cache['SETTINGS_TIME_V2'] -eq $settingsMTime) {
+            # File hasn't changed since we last cached it
+            $effortLabel = $cache['EFFORT_LABEL']
+        } else {
+            # File changed or cache miss! Parse JSON and update cache.
+            try {
+                $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json
+                if ($settings.effortLevel) {
+                    $effortLabel = " (" + (Get-Culture).TextInfo.ToTitleCase($settings.effortLevel) + ")"
+                }
+                # Only update cache if the read was successful
+                $cache['SETTINGS_TIME_V2'] = $settingsMTime
+                $cache['EFFORT_LABEL'] = $effortLabel
+                $cacheUpdated = $true
+            } catch {
+                # File might be locked by Claude writing to it. 
+                # Keep the old cached label for this tick and try again next time.
+                if ($cache['EFFORT_LABEL']) {
+                    $effortLabel = $cache['EFFORT_LABEL']
+                }
+            }
+        }
+    }
+}
 
 # Cache info
 $usage = $data.context_window.current_usage
@@ -71,15 +102,57 @@ if ($usage) {
     }
 }
 
-# Cache Timer Logic
-$timerStr = ""
+$remPct = $data.context_window.remaining_percentage
+
+# -----------------------------------------------------------------
+# Detect Context Clear/Compact to expire all timers
+# -----------------------------------------------------------------
 if ($data.transcript_path -and (Test-Path $data.transcript_path)) {
-    $lastUpdate = (Get-Item $data.transcript_path).LastWriteTimeUtc
-    $currentTime = [datetime]::UtcNow
-    $ageSeconds = ($currentTime - $lastUpdate).TotalSeconds
-    $expiresIn = 3600 - $ageSeconds
+    # Read the last few lines to look for a /clear or /compact command
+    $historyLines = Get-Content $data.transcript_path -Tail 5 -ErrorAction SilentlyContinue
+    if ($historyLines) {
+        foreach ($line in $historyLines) {
+            if ($line -match '"display":"/(clear|compact)[^"]*"') {
+                if ($line -match '"timestamp":(\d+)') {
+                    $clearTime = $matches[1]
+                    $cachedClearTime = if ($cache['LAST_CLEAR_TIME']) { $cache['LAST_CLEAR_TIME'] } else { "0" }
+                    if ([long]$clearTime -gt [long]$cachedClearTime) {
+                        $keysToClear = @()
+                        foreach ($k in $cache.Keys) {
+                            if ($k -match '^TIMER_') { $keysToClear += $k }
+                        }
+                        foreach ($k in $keysToClear) { $cache.Remove($k) }
+                        $cache['LAST_CLEAR_TIME'] = $clearTime
+                        $cacheUpdated = $true
+                    }
+                }
+            }
+        }
+    }
+}
+
+# -----------------------------------------------------------------
+# Per-Model Cache Timer Logic
+# -----------------------------------------------------------------
+$apiDuration = if ($data.cost.total_api_duration_ms) { [int64]$data.cost.total_api_duration_ms } else { 0 }
+$cachedApiDuration = if ($cache['TOTAL_API_DURATION']) { [int64]$cache['TOTAL_API_DURATION'] } else { 0 }
+
+if ($apiDuration -gt $cachedApiDuration) {
+    # An API call just finished! Update the timer for the CURRENT model.
+    $cache["TIMER_$modelName"] = [datetime]::UtcNow.Ticks.ToString()
+    $cache['TOTAL_API_DURATION'] = $apiDuration.ToString()
+    $cacheUpdated = $true
+}
+
+$timerStr = ""
+$cachedTimerTicks = $cache["TIMER_$modelName"]
+$hourglass = [char]0x23F3
+
+if ($cachedTimerTicks) {
+    $lastApiTime = [datetime]::new([long]$cachedTimerTicks, 'Utc')
+    $ageSeconds = ([datetime]::UtcNow - $lastApiTime).TotalSeconds
+    $expiresIn = 3600 - $ageSeconds  # 60 minute countdown
     
-    $hourglass = [char]0x23F3
     if ($expiresIn -gt 0) {
         $mins = [math]::Floor($expiresIn / 60)
         $secs = [math]::Floor($expiresIn % 60)
@@ -87,11 +160,12 @@ if ($data.transcript_path -and (Test-Path $data.transcript_path)) {
     } else {
         $timerStr = "$hourglass Expired"
     }
+} else {
+    $timerStr = "$hourglass Expired"
 }
 
 $currentDir = $data.workspace.current_dir
 $projectDir = $data.workspace.project_dir
-$remPct = $data.context_window.remaining_percentage
 
 # Get project name from path
 $projectName = if ($projectDir) {
@@ -106,11 +180,12 @@ $projectName = if ($projectDir) {
 $gitBranch = ""
 $gitStatus = ""
 if ($currentDir -and (Test-Path (Join-Path $currentDir ".git"))) {
-    # Try cache first
-    $cached = Read-GitCache -dir $currentDir
-    if ($cached) {
-        $gitBranch = $cached.Branch
-        $gitStatus = $cached.Status
+    $currentTime = [int64](Get-Date -UFormat %s)
+    $gitCacheTime = if ($cache['GIT_TIME']) { [int64]$cache['GIT_TIME'] } else { 0 }
+
+    if ($cache['GIT_DIR'] -eq $currentDir -and ($currentTime - $gitCacheTime) -lt $cacheTTL) {
+        $gitBranch = $cache['GIT_BRANCH']
+        $gitStatus = $cache['GIT_STATUS']
     } else {
         # Cache miss - run git commands
         $gitBranch = git -C $currentDir branch --show-current 2>$null
@@ -130,11 +205,19 @@ if ($currentDir -and (Test-Path (Join-Path $currentDir ".git"))) {
                 if ($ahead -gt 0) { $gitStatus += [char]0x2191 + $ahead }
                 if ($behind -gt 0) { $gitStatus += [char]0x2193 + $behind }
             }
-
-            # Write to cache
-            Write-GitCache -dir $currentDir -branch $gitBranch -status $gitStatus
         }
+        
+        $cache['GIT_DIR'] = $currentDir
+        $cache['GIT_TIME'] = $currentTime
+        $cache['GIT_BRANCH'] = $gitBranch
+        $cache['GIT_STATUS'] = $gitStatus
+        $cacheUpdated = $true
     }
+}
+
+# Save cache to disk only if something changed
+if ($cacheUpdated) {
+    Set-SessionCache -cache $cache
 }
 
 # Context percentage with ANSI color
@@ -153,8 +236,7 @@ $branch = [char]::ConvertFromUtf32(0x1F33F)  # herb/branch emoji
 
 $components = @()
 $components += "$folder $projectName"
-$components += "$robot $modelName"
-if ($effortLabel) { $components += $effortLabel }
+$components += "$robot $modelName$effortLabel"
 if ($cacheInfo) { $components += $cacheInfo }
 if ($timerStr) { $components += $timerStr }
 if ($gitBranch) { $components += "$branch $gitBranch$gitStatus" }
