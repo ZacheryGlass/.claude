@@ -137,8 +137,16 @@ if ($data.transcript_path -and (Test-Path $data.transcript_path)) {
 $apiDuration = if ($data.cost.total_api_duration_ms) { [int64]$data.cost.total_api_duration_ms } else { 0 }
 $cachedApiDuration = if ($cache['TOTAL_API_DURATION']) { [int64]$cache['TOTAL_API_DURATION'] } else { 0 }
 
-if ($apiDuration -gt $cachedApiDuration) {
-    # An API call just finished! Update the timer for the CURRENT model.
+if ($apiDuration -lt $cachedApiDuration) {
+    # API duration decreased (e.g. context was cleared or switched). 
+    if ($apiDuration -gt 0) {
+        # A new API call also occurred during this reset tick.
+        $cache["TIMER_$modelName"] = [datetime]::UtcNow.Ticks.ToString()
+    }
+    $cache['TOTAL_API_DURATION'] = $apiDuration.ToString()
+    $cacheUpdated = $true
+} elseif ($apiDuration -gt $cachedApiDuration) {
+    # An API call just finished normally! Update the timer for the CURRENT model.
     $cache["TIMER_$modelName"] = [datetime]::UtcNow.Ticks.ToString()
     $cache['TOTAL_API_DURATION'] = $apiDuration.ToString()
     $cacheUpdated = $true
@@ -161,7 +169,7 @@ if ($cachedTimerTicks) {
         $timerStr = "$hourglass Expired"
     }
 } else {
-    $timerStr = "$hourglass Expired"
+    $timerStr = "$hourglass No Cache"
 }
 
 $currentDir = $data.workspace.current_dir
