@@ -56,6 +56,39 @@ STATUS=$status
 # Extract values with null coalescing
 $modelName = if ($data.model.display_name) { $data.model.display_name } else { "Claude" }
 $effortLabel = if ($data.model.effort) { "Effort: " + (Get-Culture).TextInfo.ToTitleCase($data.model.effort) } else { "" }
+
+# Cache info
+$usage = $data.context_window.current_usage
+$cacheInfo = ""
+if ($usage) {
+    $read = $usage.cache_read_input_tokens
+    $write = $usage.cache_creation_input_tokens
+    if ($read -gt 0 -or $write -gt 0) {
+        $rf = if ($read -ge 1000) { "$([math]::Round($read / 1000, 1))k" } else { "$read" }
+        $wf = if ($write -ge 1000) { "$([math]::Round($write / 1000, 1))k" } else { "$write" }
+        $bolt = [char]0x26A1
+        $cacheInfo = "$bolt $rf/$wf"
+    }
+}
+
+# Cache Timer Logic
+$timerStr = ""
+if ($data.transcript_path -and (Test-Path $data.transcript_path)) {
+    $lastUpdate = (Get-Item $data.transcript_path).LastWriteTimeUtc
+    $currentTime = [datetime]::UtcNow
+    $ageSeconds = ($currentTime - $lastUpdate).TotalSeconds
+    $expiresIn = 3600 - $ageSeconds
+    
+    $hourglass = [char]0x23F3
+    if ($expiresIn -gt 0) {
+        $mins = [math]::Floor($expiresIn / 60)
+        $secs = [math]::Floor($expiresIn % 60)
+        $timerStr = "$hourglass ${mins}m ${secs}s"
+    } else {
+        $timerStr = "$hourglass Expired"
+    }
+}
+
 $currentDir = $data.workspace.current_dir
 $projectDir = $data.workspace.project_dir
 $remPct = $data.context_window.remaining_percentage
@@ -122,6 +155,8 @@ $components = @()
 $components += "$folder $projectName"
 $components += "$robot $modelName"
 if ($effortLabel) { $components += $effortLabel }
+if ($cacheInfo) { $components += $cacheInfo }
+if ($timerStr) { $components += $timerStr }
 if ($gitBranch) { $components += "$branch $gitBranch$gitStatus" }
 if ($ctxDisplay) { $components += $ctxDisplay }
 
