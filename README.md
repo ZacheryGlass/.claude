@@ -90,7 +90,7 @@ Git state is cached for 5 minutes per directory.
 
 ### Caching
 
-Each session gets its own cache file at `~/.claude/.statusline_cache_<session_id>`. Cache files older than 2 days and any orphaned temp files are deleted automatically on each write.
+Each session gets its own cache file at `~/.claude/.statusline_cache/<session_id>`. Cache files older than 2 days and any orphaned temp files are deleted automatically on each write.
 
 ## Key Features
 

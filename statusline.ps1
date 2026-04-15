@@ -6,8 +6,12 @@ $jsonInput = $input | Out-String
 if (-not $jsonInput) { return }
 $data = $jsonInput | ConvertFrom-Json
 
-# Cache settings (Per-session unique cache file)
-$cacheFile = "$env:USERPROFILE\.claude\.statusline_cache_$($data.session_id)"
+# Cache settings (Per-session unique cache file in a dedicated folder)
+$cacheDir = "$env:USERPROFILE\.claude\.statusline_cache"
+if (-not (Test-Path $cacheDir)) {
+    New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
+}
+$cacheFile = "$cacheDir\$($data.session_id)"
 $cacheTTL = 300  # 5 minutes in seconds
 
 function Get-SessionCache {
@@ -42,10 +46,11 @@ function Set-SessionCache {
         # Throttled: runs ~1 in 20 writes to avoid a directory scan every tick.
         # -----------------------------------------------------------------
         if ((Get-Random -Maximum 20) -eq 0) {
-            Get-ChildItem "$env:USERPROFILE\.claude\.statusline_cache_*" -ErrorAction SilentlyContinue |
+            $gcDir = Split-Path $cacheFile -Parent
+            Get-ChildItem $gcDir -File -ErrorAction SilentlyContinue |
                 Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-2) } |
                 Remove-Item -ErrorAction SilentlyContinue
-            Get-ChildItem "$env:USERPROFILE\.claude\.statusline_cache_*.*" -ErrorAction SilentlyContinue |
+            Get-ChildItem $gcDir -File -ErrorAction SilentlyContinue |
                 Where-Object { $_.Name -match '\.\d+$' } |
                 Remove-Item -ErrorAction SilentlyContinue
         }
@@ -149,9 +154,10 @@ if ($data.transcript_path -and (Test-Path $data.transcript_path)) {
 # -----------------------------------------------------------------
 $apiDuration = if ($data.cost.total_api_duration_ms) { [int64]$data.cost.total_api_duration_ms } else { 0 }
 $cachedApiDuration = if ($cache['TOTAL_API_DURATION']) { [int64]$cache['TOTAL_API_DURATION'] } else { 0 }
+$hasBaseline = $cache.ContainsKey('TOTAL_API_DURATION')
 
 if ($apiDuration -lt $cachedApiDuration) {
-    # API duration decreased (e.g. context was cleared or switched). 
+    # API duration decreased (e.g. context was cleared or switched).
     if ($apiDuration -gt 0) {
         # A new API call also occurred during this reset tick.
         $cache["TIMER_$modelName"] = [datetime]::UtcNow.Ticks.ToString()
@@ -159,8 +165,13 @@ if ($apiDuration -lt $cachedApiDuration) {
     $cache['TOTAL_API_DURATION'] = $apiDuration.ToString()
     $cacheUpdated = $true
 } elseif ($apiDuration -gt $cachedApiDuration) {
-    # An API call just finished normally! Update the timer for the CURRENT model.
-    $cache["TIMER_$modelName"] = [datetime]::UtcNow.Ticks.ToString()
+    if ($hasBaseline) {
+        # Genuine new API call observed within this session -- stamp the timer.
+        $cache["TIMER_$modelName"] = [datetime]::UtcNow.Ticks.ToString()
+    }
+    # First observation in this cache file (resumed session): record the baseline
+    # but do NOT stamp. Cache state from prior session is unknown; wait for the
+    # next real increase before claiming a fresh timer.
     $cache['TOTAL_API_DURATION'] = $apiDuration.ToString()
     $cacheUpdated = $true
 }

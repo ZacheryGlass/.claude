@@ -63,7 +63,7 @@ __pycache__/
 history.jsonl
 debug/
 file-history/
-/.statusline_cache
+/.statusline_cache/
 plugins/
 stats-cache.json
 plugins/installed_plugins.json
