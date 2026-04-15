@@ -79,7 +79,7 @@
     ],
     "ask": []
   },
-  "model": "sonnet",
+  "model": "opus[1m]",
   "hooks": {
     "PreToolUse": [
       {
@@ -125,7 +125,7 @@
   "statusLine": {
     "type": "command",
     "command": "powershell -NoProfile -ExecutionPolicy Bypass -File ~/.claude/statusline.ps1",
-    "refreshInterval": 1
+    "refreshInterval": 2
   },
   "enabledPlugins": {
     "data@knowledge-work-plugins": false,

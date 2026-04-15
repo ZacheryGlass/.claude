@@ -14,11 +14,7 @@ Claude Code is an interactive command-line interface that provides AI assistance
   - Custom hooks for enhanced functionality
   - Security settings like `skipDangerousModePermissionPrompt`: `true`
 
-- **`statusline.ps1`** - Custom PowerShell status line script that displays:
-  - Current project folder
-  - Active Claude model
-  - Git branch and status information
-  - Uncommitted changes and remote sync status
+- **`statusline.ps1`** - Custom PowerShell status line script (see [Statusline](#statusline) below)
 
 - **`CLAUDE.md`** - Project-specific instructions
 
@@ -37,6 +33,64 @@ Claude Code is an interactive command-line interface that provides AI assistance
   - `/arch-review`, `/arewedone`, `/bugs`, `/commit`, `/docs`, `/perf-check`, `/ui-review`
 
 - **`sync-docs.py`** - Documentation synchronization utility
+
+## Statusline
+
+`statusline.ps1` runs every second and renders a status bar. All data is cached to disk so git and file reads only happen when something actually changes.
+
+Full example:
+```
+📁 myproject | 🤖 Sonnet 4.6 (Medium) | ⚡ 12.3k/4.1k | ⏳ 47m 12s | 🌿 main*↑2 | 87% Remaining
+```
+
+### Segments
+
+**Project** — leaf name of `workspace.project_dir` (falls back to `current_dir`):
+```
+📁 myproject
+```
+
+**Model + Effort** — display name of the active model, plus effort level in parentheses (hidden for Haiku, which has no effort setting):
+```
+🤖 Sonnet 4.6 (Medium)
+🤖 Haiku 4.5
+```
+Effort level is read from `settings.json` and cached by file mtime, so the label updates immediately when you change it without re-parsing JSON on every tick.
+
+**Prompt Cache** — cumulative cache read / cache write tokens for the session (hidden when both are zero):
+```
+⚡ 12.3k/4.1k     ← read 12 300 tokens, wrote 4 100 tokens from cache
+⚡ 850/200         ← small numbers shown without suffix
+```
+
+**Cache Timer** — counts down 60 minutes from the last API call. Resets per model when you switch models. Counts down to zero then shows `Expired`. Shows `No Cache` before the first API call:
+```
+⏳ 47m 12s    ← 47 minutes left before prompt cache expires
+⏳ Expired    ← cache window has passed
+⏳ No Cache   ← no API call yet this session
+```
+A `/clear` or `/compact` command resets all model timers.
+
+**Git** — branch name with dirty/sync indicators (only shown when `current_dir/.git` exists):
+```
+🌿 main           ← clean, no remote tracking
+🌿 main*          ← uncommitted changes
+🌿 main*↑2        ← dirty + 2 commits ahead of remote
+🌿 main↓3         ← 3 commits behind remote
+🌿 HEAD@a1b2c3d   ← detached HEAD state
+```
+Git state is cached for 5 minutes per directory.
+
+**Context remaining** — percentage of the context window still available, color-coded:
+```
+87% Remaining   ← green  (> 50%)
+34% Remaining   ← yellow (20–50%)
+11% Remaining   ← red    (< 20%)
+```
+
+### Caching
+
+Each session gets its own cache file at `~/.claude/.statusline_cache_<session_id>`. Cache files older than 2 days and any orphaned temp files are deleted automatically on each write.
 
 ## Key Features
 

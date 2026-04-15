@@ -14,7 +14,7 @@ function Get-SessionCache {
     if (-not (Test-Path $cacheFile)) { return @{} }
     try {
         $cache = @{}
-        Get-Content $cacheFile | ForEach-Object {
+        Get-Content $cacheFile -Encoding UTF8 | ForEach-Object {
             if ($_ -match '^([^=]+)=(.*)$') {
                 $cache[$matches[1]] = $matches[2]
             }
@@ -33,15 +33,22 @@ function Set-SessionCache {
         foreach ($key in $cache.Keys) {
             $out += "$key=$($cache[$key])"
         }
-        ($out -join "`n") | Set-Content -Path $tempFile
+        ($out -join "`n") | Set-Content -Path $tempFile -Encoding UTF8
         Move-Item -Path $tempFile -Destination $cacheFile -Force
 
         # -----------------------------------------------------------------
-        # Garbage Collection: Clean up old session files (older than 2 days)
+        # Garbage Collection: Clean up old session files (older than 2 days),
+        # including orphaned temp files (*.PID pattern).
+        # Throttled: runs ~1 in 20 writes to avoid a directory scan every tick.
         # -----------------------------------------------------------------
-        Get-ChildItem "$env:USERPROFILE\.claude\.statusline_cache_*" -ErrorAction SilentlyContinue | 
-            Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-2) } | 
-            Remove-Item -ErrorAction SilentlyContinue
+        if ((Get-Random -Maximum 20) -eq 0) {
+            Get-ChildItem "$env:USERPROFILE\.claude\.statusline_cache_*" -ErrorAction SilentlyContinue |
+                Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-2) } |
+                Remove-Item -ErrorAction SilentlyContinue
+            Get-ChildItem "$env:USERPROFILE\.claude\.statusline_cache_*.*" -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -match '\.\d+$' } |
+                Remove-Item -ErrorAction SilentlyContinue
+        }
     } catch {}
 }
 
@@ -106,24 +113,30 @@ $remPct = $data.context_window.remaining_percentage
 
 # -----------------------------------------------------------------
 # Detect Context Clear/Compact to expire all timers
+# Only reads the transcript when the file has been modified since last check.
 # -----------------------------------------------------------------
 if ($data.transcript_path -and (Test-Path $data.transcript_path)) {
-    # Read the last few lines to look for a /clear or /compact command
-    $historyLines = Get-Content $data.transcript_path -Tail 5 -ErrorAction SilentlyContinue
-    if ($historyLines) {
-        foreach ($line in $historyLines) {
-            if ($line -match '"display":"/(clear|compact)[^"]*"') {
-                if ($line -match '"timestamp":(\d+)') {
-                    $clearTime = $matches[1]
-                    $cachedClearTime = if ($cache['LAST_CLEAR_TIME']) { $cache['LAST_CLEAR_TIME'] } else { "0" }
-                    if ([long]$clearTime -gt [long]$cachedClearTime) {
-                        $keysToClear = @()
-                        foreach ($k in $cache.Keys) {
-                            if ($k -match '^TIMER_') { $keysToClear += $k }
+    $transcriptItem = Get-Item $data.transcript_path -ErrorAction SilentlyContinue
+    $transcriptMTime = if ($transcriptItem) { $transcriptItem.LastWriteTimeUtc.Ticks.ToString() } else { $null }
+    if ($transcriptMTime -and $cache['TRANSCRIPT_MTIME'] -ne $transcriptMTime) {
+        $cache['TRANSCRIPT_MTIME'] = $transcriptMTime
+        $cacheUpdated = $true
+        $historyLines = Get-Content $data.transcript_path -Tail 5 -ErrorAction SilentlyContinue
+        if ($historyLines) {
+            foreach ($line in $historyLines) {
+                if ($line -match '"display":"/(clear|compact)[^"]*"') {
+                    if ($line -match '"timestamp":(\d+)') {
+                        $clearTime = $matches[1]
+                        $cachedClearTime = if ($cache['LAST_CLEAR_TIME']) { $cache['LAST_CLEAR_TIME'] } else { "0" }
+                        if ([long]$clearTime -gt [long]$cachedClearTime) {
+                            $keysToClear = @()
+                            foreach ($k in $cache.Keys) {
+                                if ($k -match '^TIMER_') { $keysToClear += $k }
+                            }
+                            foreach ($k in $keysToClear) { $cache.Remove($k) }
+                            $cache['LAST_CLEAR_TIME'] = $clearTime
+                            $cacheUpdated = $true
                         }
-                        foreach ($k in $keysToClear) { $cache.Remove($k) }
-                        $cache['LAST_CLEAR_TIME'] = $clearTime
-                        $cacheUpdated = $true
                     }
                 }
             }
@@ -195,24 +208,20 @@ if ($currentDir -and (Test-Path (Join-Path $currentDir ".git"))) {
         $gitBranch = $cache['GIT_BRANCH']
         $gitStatus = $cache['GIT_STATUS']
     } else {
-        # Cache miss - run git commands
-        $gitBranch = git -C $currentDir branch --show-current 2>$null
-        if (-not $gitBranch) {
-            $short = git -C $currentDir rev-parse --short HEAD 2>$null
-            if ($short) { $gitBranch = "HEAD@$short" }
-        }
-        if ($gitBranch) {
-            $porcelain = git -C $currentDir status --porcelain 2>$null
-            if ($porcelain) { $gitStatus = "*" }
-
-            # Check ahead/behind
-            $upstream = git -C $currentDir rev-parse --abbrev-ref '@{u}' 2>$null
-            if ($upstream) {
-                $ahead = git -C $currentDir rev-list --count '@{u}..HEAD' 2>$null
-                $behind = git -C $currentDir rev-list --count 'HEAD..@{u}' 2>$null
-                if ($ahead -gt 0) { $gitStatus += [char]0x2191 + $ahead }
-                if ($behind -gt 0) { $gitStatus += [char]0x2193 + $behind }
+        # Cache miss - single git call returns branch, dirty state, and ahead/behind
+        $statusLines = git -C $currentDir status --branch --porcelain=v1 2>$null
+        if ($statusLines) {
+            $header = if ($statusLines -is [array]) { $statusLines[0] } else { $statusLines }
+            if ($header -match '^## HEAD') {
+                $short = git -C $currentDir rev-parse --short HEAD 2>$null
+                if ($short) { $gitBranch = "HEAD@$short" }
+            } elseif ($header -match '^## ([^. ]+)') {
+                $gitBranch = $matches[1]
             }
+            $bodyLines = if ($statusLines -is [array]) { $statusLines.Count - 1 } else { 0 }
+            if ($bodyLines -gt 0) { $gitStatus = "*" }
+            if ($header -match '\[ahead (\d+)') { $gitStatus += [char]0x2191 + $matches[1] }
+            if ($header -match 'behind (\d+)') { $gitStatus += [char]0x2193 + $matches[1] }
         }
         
         $cache['GIT_DIR'] = $currentDir
