@@ -23,13 +23,32 @@ Claude Code is an interactive command-line interface that provides AI assistance
   - `protect_claude_md.py` - Protection for critical configuration files
 
 - **`skills/`** - Reusable agent skills:
-  - `arewedone-g` - Completion verification
-  - `gemini-agent` - Gemini-specific logic
-  - `root-cause-tracing` - Bug investigation
-  - `skill-creator` - Framework for building new skills
+  - `arewedone-g` - Runs a structural completeness review via Gemini CLI to offload token-heavy review work.
+  - `gemini-agent` - Delegates arbitrary tasks to Gemini CLI for a second opinion or token savings.
+  - `polybot-audit` - Idempotent orchestrator that drives the polybot code audit defined in `CODE_AUDIT_PLAN.md` through its 8 phases.
+  - `root-cause-tracing` - Traces a bug backward through the call stack, adding instrumentation as needed, to find the original trigger.
+  - `skill-creator` - Scaffolds and refines new skills following the official skill authoring guidelines.
 
 - **`commands/`** - Custom slash commands:
-  - `/arch-review`, `/arewedone`, `/bugs`, `/commit`, `/docs`, `/perf-check`, `/ui-review`
+  - `/arch-review` - Review architecture of specified paths or staged/unstaged git changes.
+  - `/arewedone` - Run a structural completeness review on recent changes.
+  - `/bugs` - Invoke the `bug-finder` agent to hunt for logical errors and runtime issues.
+  - `/commit` - Draft a conventional commit from the current staged/unstaged diff.
+  - `/docs` - Run the documentation review and implementation workflow.
+  - `/perf-check` - Invoke the `performance-profiler` agent to analyze code for performance issues.
+  - `/ui-review` - Invoke the `ui-ux-consultant` agent for a UI/UX and accessibility review.
+
+- **`agents/`** - Specialized sub-agents invoked via the Task tool:
+  - `architecture-reviewer` - Senior architect review of structural integrity, scalability, and long-term maintainability.
+  - `bug-finder` - Hunts for logical errors, race conditions, and unhandled edge cases in a specific function or module.
+  - `doc-implementer` - Implements documentation changes based on review findings.
+  - `doc-reviewer` - Analyzes documentation state and reports gaps, outdated content, and quality issues without making changes.
+  - `git-cherry-pick-orchestrator` - Orchestrates cherry-pick operations across repositories with submodules via a plan-then-execute workflow.
+  - `github-issue-creator` - Creates GitHub issues to track bugs, follow-ups, and future work identified mid-conversation.
+  - `performance-profiler` - Diagnoses and fixes performance issues in desktop apps (slow UI, high memory, long startup).
+  - `structural-completeness-reviewer` - Verifies that recent changes are fully integrated, old code is removed, and no technical debt was introduced.
+  - `test-runner` - Runs the project's test suite and reports results.
+  - `ui-ux-consultant` - Reviews desktop UI/UX and accessibility against platform standards.
 
 - **`sync-docs.py`** - Documentation synchronization utility
 
