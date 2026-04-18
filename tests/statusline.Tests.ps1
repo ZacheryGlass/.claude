@@ -1,17 +1,7 @@
-﻿# Regression tests for statusline (PowerShell impl and Go port).
+﻿# Regression tests for statusline.exe (Go binary).
 #
 # Usage:
-#   Invoke-Pester -Script @{ Path = '.\tests\statusline.Tests.ps1'; Parameters = @{ Command = 'ps' } }
-#   Invoke-Pester -Script @{ Path = '.\tests\statusline.Tests.ps1'; Parameters = @{ Command = 'go' } }
-#
-# Command selector:
-#   'ps' -> powershell.exe -NoProfile -File .\statusline.ps1
-#   'go' -> .\statusline.exe
-
-param(
-    [ValidateSet('ps','go')]
-    [string]$Command = 'ps'
-)
+#   Invoke-Pester -Script @{ Path = '.\tests\statusline.Tests.ps1' }
 
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -19,15 +9,9 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 $repo = Split-Path -Parent $here
 
-if ($Command -eq 'ps') {
-    $script:Exe  = 'powershell.exe'
-    $script:Args = @('-NoProfile','-ExecutionPolicy','Bypass','-File', (Join-Path $repo 'statusline.ps1'))
-    $script:PerfCeilingMs = 5000   # PS cold-spawn is slow; informational only
-} else {
-    $script:Exe  = Join-Path $repo 'statusline.exe'
-    $script:Args = @()
-    $script:PerfCeilingMs = 200    # Go port target: <50ms warm, well under 200ms cold
-}
+$script:Exe  = Join-Path $repo 'statusline.exe'
+$script:Args = @()
+$script:PerfCeilingMs = 200    # Target: <50ms warm, well under 200ms cold
 
 # Convenience wrapper that seeds a fresh sandbox per call unless one is provided.
 function RunStatusline {
@@ -60,7 +44,7 @@ $script:EmHerb      = [char]::ConvertFromUtf32(0x1F33F)  # herb
 $script:EmBolt      = [string][char]0x26A1               # bolt
 $script:EmHourglass = [string][char]0x23F3               # hourglass
 
-Describe "statusline [$Command] :: output components" {
+Describe "statusline :: output components" {
 
     It "emits a non-empty line for a happy-path input" {
         $r = RunStatusline (New-FixtureInput -ModelName 'Opus' -RemainingPct 91 -CacheRead 2000 -CacheWrite 5000)
@@ -163,7 +147,7 @@ Describe "statusline [$Command] :: output components" {
     }
 }
 
-Describe "statusline [$Command] :: cache state machine" {
+Describe "statusline :: cache state machine" {
 
     It "first invocation with api>0 records baseline but does NOT stamp timer" {
         $sb = New-StatuslineSandbox
@@ -276,7 +260,7 @@ Describe "statusline [$Command] :: cache state machine" {
     }
 }
 
-Describe "statusline [$Command] :: /clear and /compact detection" {
+Describe "statusline :: /clear and /compact detection" {
 
     # Real transcript format: <command-name>/clear</command-name> in message.content,
     # with ISO 8601 "timestamp" at the top level. See plan: this is the FIXED behavior.
@@ -364,7 +348,7 @@ Describe "statusline [$Command] :: /clear and /compact detection" {
     }
 }
 
-Describe "statusline [$Command] :: input edge cases" {
+Describe "statusline :: input edge cases" {
 
     It "empty stdin -> exit 0, no output" {
         $psi = New-Object System.Diagnostics.ProcessStartInfo
@@ -410,7 +394,7 @@ Describe "statusline [$Command] :: input edge cases" {
     }
 }
 
-Describe "statusline [$Command] :: performance" {
+Describe "statusline :: performance" {
 
     It "single invocation completes within perf ceiling ($($script:PerfCeilingMs)ms)" {
         $sb = New-StatuslineSandbox
@@ -419,7 +403,7 @@ Describe "statusline [$Command] :: performance" {
             # Warm the cache first
             RunStatusline -InputData (New-FixtureInput -SessionId $sid -ApiDurationMs 100) -Sandbox $sb -KeepSandbox | Out-Null
             $r = RunStatusline -InputData (New-FixtureInput -SessionId $sid -ApiDurationMs 100) -Sandbox $sb -KeepSandbox
-            Write-Host ("  [perf] $Command warm duration: " + [math]::Round($r.DurationMs) + "ms")
+            Write-Host ("  [perf] warm duration: " + [math]::Round($r.DurationMs) + "ms")
             $r.DurationMs | Should BeLessThan $script:PerfCeilingMs
         } finally { Remove-StatuslineSandbox -Sandbox $sb }
     }
@@ -438,3 +422,4 @@ Describe "statusline [$Command] :: performance" {
         } finally { Remove-StatuslineSandbox -Sandbox $sb }
     }
 }
+

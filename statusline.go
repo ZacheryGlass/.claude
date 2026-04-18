@@ -1,4 +1,4 @@
-// statusline: fast Go port of statusline.ps1.
+// statusline: fast status-line renderer for Claude Code.
 // Reads JSON on stdin, writes a single status line to stdout.
 package main
 

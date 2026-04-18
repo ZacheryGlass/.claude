@@ -14,7 +14,7 @@ Claude Code is an interactive command-line interface that provides AI assistance
   - Custom hooks for enhanced functionality
   - Security settings like `skipDangerousModePermissionPrompt`: `true`
 
-- **`statusline.exe` / `statusline.go`** - Custom status line binary (see [Statusline](#statusline) below). The PowerShell version (`statusline.ps1`) is kept as a reference implementation.
+- **`statusline.exe` / `statusline.go`** - Custom status line binary (see [Statusline](#statusline) below)
 
 - **`CLAUDE.md`** - Project-specific instructions
 
@@ -48,8 +48,6 @@ Measured over 20 runs each on Windows 11 (see `tests/bench.ps1`):
 | Git cache miss (exec git)   | 62ms   | once per 10 min per cwd     |
 | No git repo                 | 13ms   |                             |
 | Pure binary startup         | 11ms   | floor: process + JSON parse |
-
-For comparison, the PowerShell reference implementation runs at ~840ms warm — slow enough that ticks could pile up faster than `powershell.exe` could start, which is what caused the original countdown-freeze symptom.
 
 Full example:
 ```
@@ -114,11 +112,10 @@ The `statusline.exe` Windows binary is checked in so clones work out of the box.
 ./build_statusline.sh    # macOS / Linux
 ```
 
-Regression tests live in `tests/` and run against both implementations:
+Regression tests live in `tests/`:
 
 ```
-Invoke-Pester -Script @{ Path='tests/statusline.Tests.ps1'; Parameters = @{ Command='go' } }
-Invoke-Pester -Script @{ Path='tests/statusline.Tests.ps1'; Parameters = @{ Command='ps' } }
+Invoke-Pester -Script @{ Path='tests/statusline.Tests.ps1' }
 ```
 
 ## Key Features
@@ -139,7 +136,7 @@ Pre-tool-use hooks provide additional safety and functionality:
 ### Environment Customization
 - Disabled non-essential telemetry for privacy
 - Optimized for development workflow efficiency
-- Custom PowerShell status line integration
+- Custom Go status line binary
 - `clangd-lsp` plugin enabled
 
 ## Documentation
