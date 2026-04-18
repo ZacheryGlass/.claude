@@ -124,8 +124,8 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File ~/.claude/statusline.ps1",
-    "refreshInterval": 2
+    "command": "~/.claude/statusline.exe",
+    "refreshInterval": 1
   },
   "enabledPlugins": {
     "data@knowledge-work-plugins": false,

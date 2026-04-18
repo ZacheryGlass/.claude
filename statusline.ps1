@@ -73,7 +73,7 @@ if (-not $isHaiku) {
     $settingsPath = Join-Path $env:USERPROFILE ".claude\settings.json"
     if (Test-Path $settingsPath) {
         # Get file metadata (extremely fast, no disk I/O to read contents)
-        $settingsMTime = (Get-Item $settingsPath).LastWriteTimeUtc.Ticks.ToString()
+        $settingsMTime = ([DateTimeOffset](Get-Item $settingsPath).LastWriteTimeUtc).ToUnixTimeMilliseconds().ToString()
         
         if ($cache['SETTINGS_TIME_V2'] -eq $settingsMTime) {
             # File hasn't changed since we last cached it
@@ -122,25 +122,34 @@ $remPct = $data.context_window.remaining_percentage
 # -----------------------------------------------------------------
 if ($data.transcript_path -and (Test-Path $data.transcript_path)) {
     $transcriptItem = Get-Item $data.transcript_path -ErrorAction SilentlyContinue
-    $transcriptMTime = if ($transcriptItem) { $transcriptItem.LastWriteTimeUtc.Ticks.ToString() } else { $null }
+    $transcriptMTime = if ($transcriptItem) { ([DateTimeOffset]$transcriptItem.LastWriteTimeUtc).ToUnixTimeMilliseconds().ToString() } else { $null }
     if ($transcriptMTime -and $cache['TRANSCRIPT_MTIME'] -ne $transcriptMTime) {
         $cache['TRANSCRIPT_MTIME'] = $transcriptMTime
         $cacheUpdated = $true
         $historyLines = Get-Content $data.transcript_path -Tail 5 -ErrorAction SilentlyContinue
         if ($historyLines) {
             foreach ($line in $historyLines) {
-                if ($line -match '"display":"/(clear|compact)[^"]*"') {
-                    if ($line -match '"timestamp":(\d+)') {
-                        $clearTime = $matches[1]
-                        $cachedClearTime = if ($cache['LAST_CLEAR_TIME']) { $cache['LAST_CLEAR_TIME'] } else { "0" }
-                        if ([long]$clearTime -gt [long]$cachedClearTime) {
-                            $keysToClear = @()
-                            foreach ($k in $cache.Keys) {
-                                if ($k -match '^TIMER_') { $keysToClear += $k }
+                if ($line -match '<command-name>/(clear|compact)</command-name>') {
+                    if ($line -match '"timestamp":"([^"]+)"') {
+                        $clearTimeRaw = $matches[1]
+                        $clearTime = $null
+                        # ISO 8601 timestamp -> Unix epoch ms (long).
+                        try { $clearTime = [datetimeoffset]::Parse($clearTimeRaw).ToUnixTimeMilliseconds() } catch {}
+                        # Fallback: legacy integer-epoch format.
+                        if ($null -eq $clearTime -and $clearTimeRaw -match '^\d+$') {
+                            $clearTime = [long]$clearTimeRaw
+                        }
+                        if ($null -ne $clearTime) {
+                            $cachedClearTime = if ($cache['LAST_CLEAR_TIME']) { $cache['LAST_CLEAR_TIME'] } else { "0" }
+                            if ([long]$clearTime -gt [long]$cachedClearTime) {
+                                $keysToClear = @()
+                                foreach ($k in $cache.Keys) {
+                                    if ($k -match '^TIMER_') { $keysToClear += $k }
+                                }
+                                foreach ($k in $keysToClear) { $cache.Remove($k) }
+                                $cache['LAST_CLEAR_TIME'] = [string]$clearTime
+                                $cacheUpdated = $true
                             }
-                            foreach ($k in $keysToClear) { $cache.Remove($k) }
-                            $cache['LAST_CLEAR_TIME'] = $clearTime
-                            $cacheUpdated = $true
                         }
                     }
                 }
@@ -160,14 +169,14 @@ if ($apiDuration -lt $cachedApiDuration) {
     # API duration decreased (e.g. context was cleared or switched).
     if ($apiDuration -gt 0) {
         # A new API call also occurred during this reset tick.
-        $cache["TIMER_$modelName"] = [datetime]::UtcNow.Ticks.ToString()
+        $cache["TIMER_$modelName"] = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds().ToString()
     }
     $cache['TOTAL_API_DURATION'] = $apiDuration.ToString()
     $cacheUpdated = $true
 } elseif ($apiDuration -gt $cachedApiDuration) {
     if ($hasBaseline) {
         # Genuine new API call observed within this session -- stamp the timer.
-        $cache["TIMER_$modelName"] = [datetime]::UtcNow.Ticks.ToString()
+        $cache["TIMER_$modelName"] = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds().ToString()
     }
     # First observation in this cache file (resumed session): record the baseline
     # but do NOT stamp. Cache state from prior session is unknown; wait for the
@@ -181,7 +190,7 @@ $cachedTimerTicks = $cache["TIMER_$modelName"]
 $hourglass = [char]0x23F3
 
 if ($cachedTimerTicks) {
-    $lastApiTime = [datetime]::new([long]$cachedTimerTicks, 'Utc')
+    $lastApiTime = [DateTimeOffset]::FromUnixTimeMilliseconds([long]$cachedTimerTicks).UtcDateTime
     $ageSeconds = ([datetime]::UtcNow - $lastApiTime).TotalSeconds
     $expiresIn = 3600 - $ageSeconds  # 60 minute countdown
     
@@ -212,7 +221,7 @@ $projectName = if ($projectDir) {
 $gitBranch = ""
 $gitStatus = ""
 if ($currentDir -and (Test-Path (Join-Path $currentDir ".git"))) {
-    $currentTime = [int64](Get-Date -UFormat %s)
+    $currentTime = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
     $gitCacheTime = if ($cache['GIT_TIME']) { [int64]$cache['GIT_TIME'] } else { 0 }
 
     if ($cache['GIT_DIR'] -eq $currentDir -and ($currentTime - $gitCacheTime) -lt $cacheTTL) {
