@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	cacheTTLSec      = 300         // git info cache lifetime
+	cacheTTLSec      = 600         // git info cache lifetime
 	timerWindowSec   = 3600        // 60-minute Anthropic cache window
 	gcOlderThanHours = 48          // delete session files older than this
 	clearMatchTail   = 5           // tail N lines of transcript on mtime change

@@ -12,7 +12,7 @@ if (-not (Test-Path $cacheDir)) {
     New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
 }
 $cacheFile = "$cacheDir\$($data.session_id)"
-$cacheTTL = 300  # 5 minutes in seconds
+$cacheTTL = 600  # 10 minutes in seconds
 
 function Get-SessionCache {
     if (-not (Test-Path $cacheFile)) { return @{} }

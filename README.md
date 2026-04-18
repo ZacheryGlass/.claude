@@ -14,7 +14,7 @@ Claude Code is an interactive command-line interface that provides AI assistance
   - Custom hooks for enhanced functionality
   - Security settings like `skipDangerousModePermissionPrompt`: `true`
 
-- **`statusline.ps1`** - Custom PowerShell status line script (see [Statusline](#statusline) below)
+- **`statusline.exe` / `statusline.go`** - Custom status line binary (see [Statusline](#statusline) below). The PowerShell version (`statusline.ps1`) is kept as a reference implementation.
 
 - **`CLAUDE.md`** - Project-specific instructions
 
@@ -36,7 +36,20 @@ Claude Code is an interactive command-line interface that provides AI assistance
 
 ## Statusline
 
-`statusline.ps1` runs every second and renders a status bar. All data is cached to disk so git and file reads only happen when something actually changes.
+`statusline.exe` is a small Go binary that runs every second and renders a status bar. All data is cached to disk so git and file reads only happen when something actually changes.
+
+### Performance
+
+Measured over 20 runs each on Windows 11 (see `tests/bench.ps1`):
+
+| Scenario                    | Median | Notes                       |
+| --------------------------- | ------ | --------------------------- |
+| Fully warm (all caches hit) | 16ms   | typical tick                |
+| Git cache miss (exec git)   | 62ms   | once per 10 min per cwd     |
+| No git repo                 | 13ms   |                             |
+| Pure binary startup         | 11ms   | floor: process + JSON parse |
+
+For comparison, the PowerShell reference implementation runs at ~840ms warm — slow enough that ticks could pile up faster than `powershell.exe` could start, which is what caused the original countdown-freeze symptom.
 
 Full example:
 ```
@@ -79,7 +92,7 @@ A `/clear` or `/compact` command resets all model timers.
 🌿 main↓3         ← 3 commits behind remote
 🌿 HEAD@a1b2c3d   ← detached HEAD state
 ```
-Git state is cached for 5 minutes per directory.
+Git state is cached for 10 minutes per directory.
 
 **Context remaining** — percentage of the context window still available, color-coded:
 ```
@@ -91,6 +104,22 @@ Git state is cached for 5 minutes per directory.
 ### Caching
 
 Each session gets its own cache file at `~/.claude/.statusline_cache/<session_id>`. Cache files older than 2 days and any orphaned temp files are deleted automatically on each write.
+
+### Rebuilding
+
+The `statusline.exe` Windows binary is checked in so clones work out of the box. To rebuild from `statusline.go` (requires Go):
+
+```
+./build_statusline.ps1   # Windows
+./build_statusline.sh    # macOS / Linux
+```
+
+Regression tests live in `tests/` and run against both implementations:
+
+```
+Invoke-Pester -Script @{ Path='tests/statusline.Tests.ps1'; Parameters = @{ Command='go' } }
+Invoke-Pester -Script @{ Path='tests/statusline.Tests.ps1'; Parameters = @{ Command='ps' } }
+```
 
 ## Key Features
 
