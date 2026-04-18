@@ -10,13 +10,12 @@ Claude Code is an interactive command-line interface that provides AI assistance
 
 - **`settings.json`** - Core configuration file containing:
   - Permission settings for various tools and commands
-  - Model preferences (default: `sonnet`) and environment variables
   - Custom hooks for enhanced functionality
-  - Security settings like `skipDangerousModePermissionPrompt`: `true`
+  - etc.
 
 - **`statusline.exe` / `statusline.go`** - Custom status line binary (see [Statusline](#statusline) below)
 
-- **`CLAUDE.md`** - Project-specific instructions
+- **`CLAUDE.md`** - Minimal agent instructions
 
 - **`hooks/`** - Pre/Post-tool-use scripts:
   - `emoji_remover.py` - Post-edit hook to ensure no emojis are used
@@ -56,88 +55,14 @@ Full example:
 
 ### Segments
 
-**Project** — leaf name of `workspace.project_dir` (falls back to `current_dir`):
-```
-📁 myproject
-```
-
-**Model + Effort** — display name of the active model, plus effort level in parentheses (hidden for Haiku, which has no effort setting):
-```
-🤖 Sonnet 4.6 (Medium)
-🤖 Haiku 4.5
-```
-Effort level is read from `settings.json` and cached by file mtime, so the label updates immediately when you change it without re-parsing JSON on every tick.
-
-**Prompt Cache** — cumulative cache read / cache write tokens for the session (hidden when both are zero):
-```
-⚡ 12.3k/4.1k     ← read 12 300 tokens, wrote 4 100 tokens from cache
-⚡ 850/200         ← small numbers shown without suffix
-```
-
-**Cache Timer** — counts down 60 minutes from the last API call. Resets per model when you switch models. Counts down to zero then shows `Expired`. Shows `No Cache` before the first API call:
-```
-⏳ 47m 12s    ← 47 minutes left before prompt cache expires
-⏳ Expired    ← cache window has passed
-⏳ No Cache   ← no API call yet this session
-```
-A `/clear` or `/compact` command resets all model timers.
-
-**Git** — branch name with dirty/sync indicators (only shown when `current_dir/.git` exists):
-```
-🌿 main           ← clean, no remote tracking
-🌿 main*          ← uncommitted changes
-🌿 main*↑2        ← dirty + 2 commits ahead of remote
-🌿 main↓3         ← 3 commits behind remote
-🌿 HEAD@a1b2c3d   ← detached HEAD state
-```
-Git state is cached for 10 minutes per directory.
-
-**Context remaining** — percentage of the context window still available, color-coded:
-```
-87% Remaining   ← green  (> 50%)
-34% Remaining   ← yellow (20–50%)
-11% Remaining   ← red    (< 20%)
-```
-
-### Caching
-
-Each session gets its own cache file at `~/.claude/.statusline_cache/<session_id>`. Cache files older than 2 days and any orphaned temp files are deleted automatically on each write.
-
-### Rebuilding
-
-The `statusline.exe` Windows binary is checked in so clones work out of the box. To rebuild from `statusline.go` (requires Go):
-
-```
-./build_statusline.ps1   # Windows
-./build_statusline.sh    # macOS / Linux
-```
-
-Regression tests live in `tests/`:
-
-```
-Invoke-Pester -Script @{ Path='tests/statusline.Tests.ps1' }
-```
-
-## Key Features
-
-### Permission Management
-The configuration includes carefully tuned permissions that allow Claude Code to:
-- Perform file operations safely
-- Execute git commands for version control
-- Run development tools and package managers
-- Access web resources when needed
-
-### Custom Hooks
-Pre-tool-use hooks provide additional safety and functionality:
-- GitHub issue integration guards
-- Protection for critical configuration files
-- Automatic emoji removal post-edit
-
-### Environment Customization
-- Disabled non-essential telemetry for privacy
-- Optimized for development workflow efficiency
-- Custom Go status line binary
-- `clangd-lsp` plugin enabled
+| Segment | Example | Description |
+| --- | --- | --- |
+| Project | `📁 myproject` | Leaf name of `workspace.project_dir` (falls back to `current_dir`). |
+| Model + Effort | `🤖 Sonnet 4.6 (Medium)` | Display name of the active model, plus effort level in parentheses (hidden for Haiku). Effort is read from `settings.json` and cached by file mtime. |
+| Prompt Cache | `⚡ 12.3k/4.1k` | Cumulative cache read / write tokens for the session (read 12,300, wrote 4,100). Hidden when both are zero; small numbers shown without suffix. |
+| Cache Timer | `⏳ 47m 12s` | Counts down 60 minutes from the last API call. Shows `Expired` once the window passes and `No Cache` before the first call. Resets per model when you switch models. `/clear` or `/compact` resets all model timers. |
+| Git | `🌿 main*↑2` | Branch name with dirty/sync indicators: `*` for uncommitted changes, `↑N`/`↓N` for ahead/behind remote, `HEAD@<sha>` when detached. Only shown when `current_dir/.git` exists. Cached for 10 minutes per directory. |
+| Context remaining | `87% Remaining` | Percentage of context window still available, color-coded: green above 50%, yellow 20–50%, red below 20%. |
 
 ## Documentation
 
