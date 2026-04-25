@@ -25,7 +25,6 @@ Claude Code is an interactive command-line interface that provides AI assistance
 - **`skills/`** - Reusable agent skills:
   - `arewedone-g` - Runs a structural completeness review via Gemini CLI to offload token-heavy review work.
   - `gemini-agent` - Delegates arbitrary tasks to Gemini CLI for a second opinion or token savings.
-  - `polybot-audit` - Idempotent orchestrator that drives the polybot code audit defined in `CODE_AUDIT_PLAN.md` through its 8 phases.
   - `root-cause-tracing` - Traces a bug backward through the call stack, adding instrumentation as needed, to find the original trigger.
   - `skill-creator` - Scaffolds and refines new skills following the official skill authoring guidelines.
 
