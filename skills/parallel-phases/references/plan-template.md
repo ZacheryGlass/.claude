@@ -89,47 +89,46 @@ Rationale: Both tasks touch distinct files and have no runtime interaction.
 
 ### Tasks
 
-#### task-01-delete-dead-strategy
+#### task-01-delete-dead-feature
 - agent_type: general-purpose
 - model: sonnet
 - isolation: worktree
-- scope: src/strategy/signal_arb.*, src/strategy/registry.c, tests/strategy/
+- scope: src/features/legacy_export.*, src/features/registry.ts, tests/features/
 - prompt: |
-    Delete the SIGNAL_ARB strategy end-to-end. Remove the enum value, the
-    source files, any references in the strategy registry, and the tests
-    that target it. Verify `make test` passes. Commit as
-    `refactor(strategy): remove unused SIGNAL_ARB strategy`.
+    Delete the LEGACY_EXPORT feature end-to-end. Remove the enum value, the
+    source files, any references in the feature registry, and the tests
+    that target it. Verify `npm test` passes. Commit as
+    `refactor(features): remove unused LEGACY_EXPORT feature`.
 
-#### task-02-optimize-tick-reader
+#### task-02-optimize-csv-parser
 - agent_type: general-purpose
 - model: opus
 - isolation: worktree
-- scope: src/io/tick_reader.c, src/io/tick_reader.h, bench/
+- scope: src/io/csv_parser.ts, src/io/csv_parser.test.ts, bench/
 - prompt: |
-    Optimize tick_reader.c parse hot path. Current throughput is ~X; target
-    2-4x. Profile with the existing bench harness in bench/tick_reader_bench.c.
+    Optimize the csv_parser parse hot path. Current throughput is ~X; target
+    2-4x. Profile with the existing bench harness in bench/csv_parser_bench.ts.
     Preserve exact semantics -- add a regression test capturing current output
-    on the first 1000 ticks of the sample archive. Commit as
-    `perf(io): speed up tick_reader parse path`.
+    on the first 1000 rows of the sample fixture. Commit as
+    `perf(io): speed up csv_parser parse path`.
 
 ## Phase 2: Post-cleanup validation (depends on Phase 1)
 
-Rationale: The backtest re-run consumes output of Phase 1's cleaned codebase
-and faster tick reader. Must wait for Phase 1 integration.
+Rationale: The integration re-run consumes output of Phase 1's cleaned
+codebase and faster parser. Must wait for Phase 1 integration.
 
 ### Tasks
 
-#### task-03-backtest-rerun-shares-20
+#### task-03-rerun-integration-suite
 - agent_type: general-purpose
 - model: opus
 - isolation: worktree
-- scope: bt/, analysis/
+- scope: integration/, analysis/
 - prompt: |
-    Re-run the shares=20 A/B/C backtest on the refreshed archive at
-    `/mnt/c/Users/zache/Google_Drive/polybot-archiver`. Window:
-    2026-04-03..2026-04-06 BTC 5m. Write results to
-    `bt/results/shares-20-rerun.md` with per-market PnL and the Stage 2
-    verdict. Commit.
+    Re-run the full integration suite against the refreshed fixtures in
+    `integration/fixtures/`. Write results to
+    `integration/results/post-cleanup-rerun.md` with per-suite pass/fail
+    and any regressions vs. the previous baseline. Commit.
 ```
 
 ## Generating PLAN.md from conversation context (for the orchestrator, on first run)
