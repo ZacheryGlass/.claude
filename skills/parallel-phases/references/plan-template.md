@@ -1,6 +1,6 @@
 # PLAN.md template
 
-PLAN.md is written once during first-run planning, reviewed by the user, and treated as immutable during execution. Re-planning means deleting `.parallel-phases/` and starting over.
+PLAN.md is written once during setup, reviewed by the user, and treated as immutable during execution. Re-planning means deleting `<state-dir>` and starting over.
 
 ## Top-level fields
 
@@ -8,7 +8,7 @@ PLAN.md is written once during first-run planning, reviewed by the user, and tre
 ---
 target_branch: <branch the user was on when /parallel-phases was invoked>
 test_command: <shell command to run after each phase merge; or "none">
-gitignore_state: true                  # default true; false leaves .parallel-phases/ untracked via .gitignore
+state_dir: <absolute path to state dir>
 total_phases: <N>
 generated_at: <ISO-8601 timestamp>
 source: conversation                    # how the plan was derived
@@ -77,7 +77,7 @@ The orchestrator dispatches one wave at a time. A wave completes (all tasks FIXE
 ---
 target_branch: wip
 test_command: make test
-gitignore_state: true
+state_dir: /home/user/.claude/parallel-phases/abc123def456
 total_phases: 2
 generated_at: 2026-04-23T18:30:00Z
 source: conversation

@@ -1,34 +1,170 @@
 ---
 name: parallel-phases
-description: Idempotent orchestrator that executes a list of tasks in parallel phases with a per-task 3-reviewer gauntlet and auto-fix commits. First invocation reads the current conversation, drafts a phased parallel PLAN.md grouping tasks by dependency, asks approval, then dispatches Opus agents in git worktrees. Each completed task gets bug-finder + structural-completeness-reviewer + architecture-reviewer run in parallel, with findings auto-addressed as a follow-up commit before the phase merges. Advances phase-by-phase until all work is complete. Resilient to /clear -- all state lives in the project's .parallel-phases/ directory on disk. Triggers on /parallel-phases, "parallelize these tasks", "run these in parallel phases", "plan parallel phases", or when the user asks to execute multiple tasks concurrently with review gates. Also compatible with /loop wrapping for unattended progression.
+description: End-to-end orchestrator for multi-task parallel work. Phase 1 (setup) gathers code intelligence, analyzes merge-conflict risks, groups tasks into maximally-parallel phases, writes enriched self-contained agent prompts, and generates PLAN.md + STATE.md. Phase 2 (execution) dispatches Opus agents in worktrees with a per-task 3-reviewer gauntlet and auto-fix commits, then a doc-update agent at completion. Asks explicit permission before starting autonomous execution. Resilient to /clear via file-backed state. Triggers on /parallel-phases, "parallelize these tasks", "run these in parallel phases".
 ---
 
 # Parallel Phases Orchestrator
 
-Idempotent driver that runs a user-approved list of tasks in parallel phases. Each invocation: read state, decide ONE next action, dispatch or wait, optionally loop. Designed to survive `/clear` and to be safely wrapped by `/loop`.
+End-to-end orchestrator for multi-task parallel work. Two phases in a single skill invocation:
+
+1. **Setup** (interactive): identify tasks, gather code intelligence, analyze conflicts, group into parallel phases, write enriched prompts, generate PLAN.md + STATE.md, present for approval.
+2. **Execution** (autonomous): dispatch agents, run 3-reviewer gauntlet, apply fixes, merge phases, update docs. Runs unattended until complete or blocked.
+
+An explicit permission gate separates setup from execution.
 
 ## Scope
 
 - **Target project**: current working directory (`<cwd>`). All paths below are relative to it unless absolute.
-- **State directory**: `<cwd>/.parallel-phases/`. Created on first planning run.
+- **State directory**: `~/.claude/parallel-phases/<project-hash>/`. Computed on first invocation. Does NOT live in the repo -- no .gitignore needed.
 - **Read `<cwd>/CLAUDE.md` once at session start** if not already in context -- it holds project-specific conventions.
+
+### Computing the state directory
+
+On first invocation, derive the state directory path:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+PROJECT_HASH=$(echo -n "$REPO_ROOT" | md5sum | head -c 12)
+STATE_DIR="$HOME/.claude/parallel-phases/$PROJECT_HASH"
+```
+
+Write a `project.json` into the state dir on creation:
+```json
+{"repo": "<absolute repo root>", "created": "<ISO-8601>"}
+```
+
+This allows multiple projects to use parallel-phases without collision, and lets the user find which state dir belongs to which project.
+
+Throughout this document, `<state-dir>` refers to this computed path.
+
+## Entry point
+
+On every invocation, compute the state directory, then check which mode applies:
+
+1. **`<state-dir>/COMPLETE.md` exists** -> print `PARALLEL-PHASES COMPLETE at <hash>` and exit.
+2. **`<state-dir>/STATE.md` exists with tasks** -> skip to "Execution phase" (decision tree).
+3. **`<state-dir>` does not exist or has no STATE.md** -> run "Setup phase" below.
+
+This means: first invocation runs setup. Subsequent invocations (after approval) run execution. Resume after `/clear` picks up from file-backed state.
+
+---
+
+## Setup phase
+
+Run when `<state-dir>/PLAN.md` does not exist (or needs to be rebuilt).
+
+### 1. Identify tasks
+
+Extract discrete work items from:
+- The user's message / skill arguments
+- Recent conversation context
+- A referenced plan document (if the user points to one)
+
+If the task list is ambiguous or incomplete, use `AskUserQuestion` to clarify. Ask about:
+- Scope boundaries (what's in, what's out)
+- Priority ordering (if more tasks than can reasonably run overnight)
+- Constraints (files that must not change, features that must not break)
+
+Each task needs: a clear goal, expected file scope, and acceptance criteria.
+
+### 2. Gather code intelligence
+
+For each task, spawn an `Explore` agent (or read directly for small scopes) to collect:
+- Exact file paths and line numbers for code that will be read or modified
+- Current function signatures and short code excerpts at modification points
+- Existing test patterns (how tests are structured, helper functions available)
+- Build system structure (how source/test files are registered -- e.g., Makefile variables, package.json scripts)
+
+This is the critical step that makes prompts self-contained. Without it, agents waste time rediscovering the codebase or make incorrect assumptions.
+
+### 3. Analyze merge-conflict risk
+
+Read `references/conflict-analysis.md` for the full protocol.
+
+Key checks:
+- Identify shared files that multiple tasks would modify (build config, type definitions, shared headers)
+- For each conflict, choose a mitigation: combine tasks, serialize into separate phases, or designate one task as the Makefile/config owner
+- Prefer preserving parallelism over serializing. Only serialize when file-level overlap is unavoidable.
+
+### 4. Group tasks into phases
+
+Read `references/dependency-analysis.md` for grouping heuristics.
+
+Rules:
+- Tasks with no file overlap and no semantic dependency go in the same phase (parallel).
+- Tasks that produce outputs consumed by later tasks go in earlier phases.
+- When conflict mitigation allows parallel execution (e.g., one task owns the build config), keep tasks parallel.
+- Aim for fewer, larger phases. Each phase has fixed overhead (review + fix + merge + test).
+
+### 5. Write enriched task prompts
+
+Read `references/prompt-template.md` for the full template.
+
+Each task prompt must be completely self-contained -- the agent has zero conversation context. Include:
+- Project location and build instructions (reference CLAUDE.md)
+- Hard restrictions (no network, no credentials, no deployment -- as appropriate)
+- Exact files to read first, with line numbers
+- Step-by-step implementation instructions with code excerpts
+- Acceptance criteria
+- Verification commands (build, test, backtest if applicable)
+- Explicit commit instructions with exact `git add` + `git commit -m` recipes
+
+### 6. Generate PLAN.md and STATE.md
+
+Read `references/plan-format.md` for the exact file format.
+
+- If `<state-dir>` exists and has no COMPLETE.md, confirm with user before deleting (an incomplete run may have salvageable work)
+- Create `<state-dir>/` with `project.json`, `PLAN.md`, and `STATE.md`
+- PLAN.md frontmatter must include `state_dir: <absolute state-dir path>` so agents and reviewers can find the state
+
+### 7. Present plan and request execution permission
+
+Show the user:
+- Phase count and task count
+- Phase grouping with parallelism rationale
+- Identified merge-conflict risks and mitigations
+- Estimated completion time (rough: ~70 min/task for agent + review + fix + merge)
+- Any deferred concerns or known risks
+
+Then use `AskUserQuestion` with these options:
+
+- **Begin autonomous execution** -- "The setup is complete and PLAN.md has been written. Starting execution will dispatch multiple Opus agents in parallel across worktrees, each followed by a 3-reviewer gauntlet and auto-fix cycle. This may run continuously for many hours. Approve to begin."
+- **Edit PLAN.md first** -- "Leave PLAN.md at <state-dir>/PLAN.md for manual editing. Re-run /parallel-phases after editing to resume."
+- **Cancel** -- "Delete <state-dir> entirely and abort."
+
+On **Begin autonomous execution**: fall through to the execution phase decision tree. Do NOT exit.
+On **Edit PLAN.md first**: print the path and exit.
+On **Cancel**: delete `<state-dir>` and exit.
+
+## Setup key principles
+
+- **Maximize parallelism.** Only serialize when file-level conflicts or semantic dependencies force it. Document why each serialization is necessary.
+- **Prompts are the product.** A vague prompt produces a failed agent. Every prompt should have enough detail that a competent engineer could complete the task without asking questions.
+- **Gather, don't guess.** Read the actual code to get line numbers and excerpts. Don't assume line numbers from memory or conversation context -- they drift.
+- **Commit instructions are mandatory.** Every task prompt must end with explicit `git add` + `git commit -m` commands.
+
+---
+
+## Execution phase
+
+Idempotent driver. Each invocation: read state, decide ONE next action, dispatch or wait, loop. Designed to survive `/clear`.
 
 ## Source-of-truth files (read at the TOP of every invocation)
 
 | File | Purpose |
 |---|---|
-| `.parallel-phases/PLAN.md` | Phase definitions, tasks, target branch, test command. Immutable after user approval. See `references/plan-template.md`. |
-| `.parallel-phases/STATE.md` | Dashboard. Updated every invocation. See `references/state-template.md`. |
-| `.parallel-phases/COMPLETE.md` | Exists ONLY when all phases are merged. Hard-exit marker. |
-| `.parallel-phases/phase-N/*` | Per-phase artifacts: dispatch logs, agent outputs, reviewer reports, fix summaries, marker files. |
+| `<state-dir>/PLAN.md` | Phase definitions, tasks, target branch, test command. Immutable after approval. See `references/plan-template.md`. |
+| `<state-dir>/STATE.md` | Dashboard. Updated every invocation. See `references/state-template.md`. |
+| `<state-dir>/COMPLETE.md` | Exists ONLY when all phases are merged. Hard-exit marker. |
+| `<state-dir>/phase-N/*` | Per-phase artifacts: dispatch logs, agent outputs, reviewer reports, fix summaries, marker files. |
 
 ## Hard exit conditions (check FIRST, before the decision tree)
 
 If any of these are true, print the reason and exit immediately. Do NOT dispatch anything.
 
-1. `.parallel-phases/COMPLETE.md` exists -> print `PARALLEL-PHASES COMPLETE at <commit hash from COMPLETE.md>` and exit.
-2. `.parallel-phases/STATE.md` contains an unresolved `BLOCKED:` line -> print that line and exit.
-3. Any `.parallel-phases/phase-*/task-*-review-*.md` report has `Status: BLOCKED` -> print task id + reviewer + exit.
+1. `<state-dir>/COMPLETE.md` exists -> print `PARALLEL-PHASES COMPLETE at <commit hash from COMPLETE.md>` and exit.
+2. `<state-dir>/STATE.md` contains an unresolved `BLOCKED:` line -> print that line and exit.
+3. Any `<state-dir>/phase-*/task-*-review-*.md` report has `Status: BLOCKED` -> print task id + reviewer + exit.
 4. Last test command on the current phase's integration branch shows failures not yet documented in STATE.md -> exit.
 5. `<cwd>` is not a git working tree (`git rev-parse --git-dir` fails) -> print `parallel-phases requires a git repo` and exit. (Worktree isolation is mandatory.)
 
@@ -42,27 +178,11 @@ IN-FLIGHT: <count> | DONE: <tasks-done>/<tasks-total> | GATE: <PASS|PENDING|FAIL
 NEXT: <one-line description of the action this invocation will take>
 ```
 
-## First-run planning (when `.parallel-phases/` does NOT exist)
-
-1. Verify `<cwd>` is a git repo (hard exit #5 above).
-2. Capture starting branch: `git rev-parse --abbrev-ref HEAD` -- this is the default `target_branch` in PLAN.md.
-3. Read the current conversation context and extract candidate tasks. A "task" is a discrete unit of work the user has discussed (bug fix, feature, refactor, cleanup, investigation, paper smoke, backtest run, etc.).
-4. Analyze dependencies using `references/dependency-analysis.md`. Group tasks into **phases** where all tasks within a phase can run concurrently.
-5. Draft PLAN.md at `.parallel-phases/PLAN.md` following `references/plan-template.md`. Each task gets an id, slug, model (default `opus`), isolation (`worktree` by default), agent type (default `general-purpose`), scope notes, and a compact prompt.
-6. Present a plan summary to the user via `AskUserQuestion` with 3 options: **Approve and execute**, **Edit PLAN.md first**, **Cancel**.
-7. **On approve**:
-   - Write `.parallel-phases/STATE.md` from `references/state-template.md` with `current_phase: 1` and all tasks `PENDING`.
-   - Append `.parallel-phases/` to `<cwd>/.gitignore` (create if needed) UNLESS PLAN.md sets `gitignore_state: false`.
-   - Commit: `git add .gitignore && git commit -m "chore(parallel-phases): initialize plan"` (only the gitignore entry, nothing in `.parallel-phases/` is tracked).
-   - Fall through to the decision tree. Do NOT exit.
-8. **On edit**: Leave PLAN.md in place. Print `PLAN.md drafted at .parallel-phases/PLAN.md -- edit and re-run /parallel-phases to approve.` Exit.
-9. **On cancel**: Delete `.parallel-phases/` entirely. Exit.
-
 ## Decision tree (run after the status header, every invocation)
 
-Evaluate in order. Act on the first match. After acting, in **run-to-completion mode**, loop back to "read state + decision tree" locally within the same invocation. In **/loop mode** (when the user wraps with `/loop`), always exit after one action.
+Evaluate in order. Act on the first match. After acting, in **run-to-completion mode**, loop back to "read state + decision tree" locally within the same invocation.
 
-1. **No `.parallel-phases/`** -> run First-run planning (above).
+1. **No `<state-dir>`** -> run Setup phase (above).
 2. **In-flight background agents for current phase**: if background Agent notifications for current-phase task/reviewer/fix agents are still pending, print `IN-FLIGHT: N agents; waiting` and exit. Do not dispatch new work.
 3. **Current phase has tasks with status `PENDING`** (not yet dispatched): dispatch them. See "Task dispatch" below.
 4. **Current phase has tasks with status `DONE` but missing reviewer reports**: dispatch the 3-reviewer gauntlet for those tasks. See "Reviewer gauntlet" below.
@@ -70,7 +190,7 @@ Evaluate in order. Act on the first match. After acting, in **run-to-completion 
 6. **All current-phase tasks are `FIXED` and no `phase-complete` marker**: write marker, then merge. See `references/worktree-protocol.md`.
 7. **`phase-complete` marker exists but `merged` does not**: run the merge + test protocol. On green: write `merged` marker, commit. On red: append `BLOCKED: phase N test gate failed -- <log path>` to STATE.md and exit.
 8. **`merged` marker exists and `current_phase < total_phases`**: update STATE.md to `current_phase += 1`, commit `chore(parallel-phases): advance to phase N+1`, loop.
-9. **`merged` marker exists and `current_phase == total_phases`**: write `.parallel-phases/COMPLETE.md` with the final commit hash and ISO timestamp, print `PARALLEL-PHASES COMPLETE at <hash>`, exit.
+9. **`merged` marker exists and `current_phase == total_phases`**: dispatch the documentation-update agent (see "Documentation update" below), then write `<state-dir>/COMPLETE.md` with the final commit hash and ISO timestamp, print `PARALLEL-PHASES COMPLETE at <hash>`, exit.
 
 ## Task dispatch
 
@@ -85,17 +205,16 @@ Required parameters:
 - `prompt`: task prompt from PLAN.md (self-contained, the subagent has no conversation context)
 
 After dispatching:
-- Write `.parallel-phases/phase-N/dispatch.md` listing the task id -> worktree path + branch name (`phase-N/task-NN-<slug>`) returned by each Agent call when `isolation="worktree"` is used.
+- Write `<state-dir>/phase-N/dispatch.md` listing the task id -> worktree path + branch name (`phase-N/task-NN-<slug>`) returned by each Agent call when `isolation="worktree"` is used.
 - Update STATE.md: set each dispatched task's status to `IN-FLIGHT`.
-- Commit: `git add .parallel-phases/phase-N/dispatch.md && git commit -m "chore(parallel-phases): dispatch phase N tasks"` (if state dir is tracked; otherwise skip).
 
 ## Reviewer gauntlet (3 parallel per task)
 
 When a task completes (status `DONE`), dispatch exactly 3 reviewer agents in parallel for it. **All 3 go in a single message**:
 
-- `Agent(subagent_type: "bug-finder", model: "opus", run_in_background: true, prompt: ...)` — output to `phase-N/task-NN-review-bugs.md`
-- `Agent(subagent_type: "structural-completeness-reviewer", model: "opus", run_in_background: true, prompt: ...)` — output to `phase-N/task-NN-review-structural.md`
-- `Agent(subagent_type: "architecture-reviewer", model: "opus", run_in_background: true, prompt: ...)` — output to `phase-N/task-NN-review-architecture.md`
+- `Agent(subagent_type: "bug-finder", model: "opus", run_in_background: true, prompt: ...)` -- output to `<state-dir>/phase-N/task-NN-review-bugs.md`
+- `Agent(subagent_type: "structural-completeness-reviewer", model: "opus", run_in_background: true, prompt: ...)` -- output to `<state-dir>/phase-N/task-NN-review-structural.md`
+- `Agent(subagent_type: "architecture-reviewer", model: "opus", run_in_background: true, prompt: ...)` -- output to `<state-dir>/phase-N/task-NN-review-architecture.md`
 
 See `references/review-gauntlet.md` for the exact prompt template each reviewer receives. Reviewers analyze the diff on the task's branch (`git diff <target_branch>...phase-N/task-NN-<slug>`), NOT the main working copy.
 
@@ -105,11 +224,11 @@ Update STATE.md: set task status to `REVIEWING`. When all 3 reports exist, set t
 
 When a task reaches status `REVIEWED`, dispatch a fix agent that:
 - Runs **inside the same worktree** as the task (do NOT create a new worktree; pass the existing worktree path in the prompt).
-- Reads all 3 reviewer reports.
+- Reads all 3 reviewer reports from `<state-dir>/phase-N/`.
 - Classifies each finding: `accept` / `defer` / `reject` (false positive).
 - Implements all `accept` findings.
 - Commits as a follow-up on the same branch: `fix(review): address <N> findings on <task-slug>` (NEVER `--amend`).
-- Writes `phase-N/task-NN-fix.md` with the classification table and fix commit hash.
+- Writes `<state-dir>/phase-N/task-NN-fix.md` with the classification table and fix commit hash.
 
 Parameters:
 - `subagent_type`: `"general-purpose"`
@@ -120,6 +239,42 @@ Parameters:
 See `references/fix-agent-prompt.md` for the full prompt template.
 
 Update STATE.md: status -> `FIXING` on dispatch, `FIXED` when fix commit lands (or the fix agent reports no actionable findings and writes an empty-fix summary).
+
+## Documentation update (after final phase merges)
+
+After the last phase merges successfully (decision tree step 9, before writing COMPLETE.md), dispatch a single `doc-implementer` agent to sync documentation with the code changes:
+
+```
+Agent(
+  description: "update docs after parallel-phases",
+  subagent_type: "doc-implementer",
+  model: "opus",
+  run_in_background: true,
+  prompt: |
+    The parallel-phases orchestrator just completed all phases of work
+    on the project at <cwd>. Read CLAUDE.md and the project's docs/
+    directory to understand the documentation structure.
+
+    Review all commits since <starting commit hash> (the target_branch
+    HEAD when the plan was created) by running:
+      git log <starting hash>..HEAD --oneline
+
+    For each commit, check whether the changes affect any documented
+    behavior, configuration, parameters, CLI flags, architecture, or
+    file layout. Update the relevant documentation files to reflect the
+    current state of the code. Do NOT create new documentation files
+    unless the changes introduce entirely new subsystems.
+
+    Focus on: CLAUDE.md project sections, README if present, docs/ files
+    that reference modified modules, and any inline doc comments that
+    are now stale.
+
+    Commit documentation updates as:
+      git commit -m "docs: update documentation after parallel-phases run"
+)
+```
+
+Wait for the doc agent to complete before writing COMPLETE.md.
 
 ## Concurrency caps
 
@@ -143,10 +298,10 @@ After all tasks in a phase are `FIXED`:
 
 1. Create / reset `phase-N/integration` branch from `target_branch` (from PLAN.md).
 2. For each task in phase, `git merge --no-ff phase-N/task-NN-<slug>` into `phase-N/integration`.
-3. On merge conflict: abort the merge, mark that task `RETRY-NEEDED` in STATE.md, write `phase-N/task-NN-merge-conflict.md` with conflict summary, append `BLOCKED: phase N merge conflict on task NN` to STATE.md, exit.
+3. On merge conflict: abort the merge, mark that task `RETRY-NEEDED` in STATE.md, write `<state-dir>/phase-N/task-NN-merge-conflict.md` with conflict summary, append `BLOCKED: phase N merge conflict on task NN` to STATE.md, exit.
 4. Run test command from PLAN.md on `phase-N/integration`. If none configured and no tests auto-detected, skip with a `GATE: SKIPPED (no test command)` note.
 5. On tests green: fast-forward `target_branch` to `phase-N/integration`. On tests red: `BLOCKED: phase N tests red -- <log path>`.
-6. Write `phase-N/merged` marker. Commit `chore(parallel-phases): phase N merged`. Run `git worktree prune`.
+6. Write `<state-dir>/phase-N/merged` marker. Commit `chore(parallel-phases): phase N merged`. Run `git worktree prune`.
 
 ## Commit policy
 
@@ -157,7 +312,6 @@ Follows global CLAUDE.md:
 - Never force-push.
 - Commit messages:
   - Setup: `chore(parallel-phases): initialize plan`
-  - Dispatch (optional): `chore(parallel-phases): dispatch phase N tasks`
   - Phase merge: `chore(parallel-phases): phase N merged`
   - Phase advance: `chore(parallel-phases): advance to phase N+1`
   - Fix agent: `fix(review): address <N> findings on <task-slug>`
@@ -166,7 +320,7 @@ Follows global CLAUDE.md:
 ## Run modes
 
 - **Interactive / run-to-completion**: default. After each dispatch or state change, loop locally (re-read state, re-run decision tree). Exit only when reaching in-flight-wait, a hard exit, or completion.
-- **/loop mode**: when wrapped with `/loop INTERVAL /parallel-phases`, always exit after one decision-tree action. Each tick is a fresh chance. Rely on `/loop`'s idempotency — the file-backed state and hard-exit checks prevent duplicate dispatches.
+- **/loop mode**: when wrapped with `/loop INTERVAL /parallel-phases`, always exit after one decision-tree action. Each tick is a fresh chance. Rely on `/loop`'s idempotency -- the file-backed state and hard-exit checks prevent duplicate dispatches.
 
 No mode flag is needed. The skill behaves the same either way; the only difference is whether the orchestrator keeps looping within one turn.
 
@@ -177,24 +331,28 @@ No mode flag is needed. The skill behaves the same either way; the only differen
 - **Fix agent failed**: status `FIX-FAILED`. Append `BLOCKED: fix agent failed on task <id>` to STATE.md.
 - **Merge conflict**: abort, `BLOCKED: merge conflict`. User resolves manually (edit in the worktree, commit, re-run skill).
 - **Test gate red**: `BLOCKED: tests red`. User triages.
-- **Manual reset**: delete `.parallel-phases/` entirely, `git worktree prune`, remove `phase-*` branches.
-- **Resume-from-clear**: just re-run `/parallel-phases`. The skill re-reads STATE.md and picks up from the correct decision-tree branch.
+- **Manual reset**: delete `<state-dir>` entirely, `git worktree prune`, remove `phase-*` branches.
+- **Resume-from-clear**: just re-run `/parallel-phases`. The skill re-computes the state dir from repo root and picks up from STATE.md.
 
 ## Operational notes
 
 - Background `Agent` calls notify the main session on completion -- do not poll with sleep.
-- Use `Read` + `Glob` on `.parallel-phases/**/*` to inventory state. Don't shell out to `ls` or `find`.
+- Use `Read` + `Glob` on `<state-dir>/**/*` to inventory state.
 - Reviewer reports live alongside task outputs under the phase directory so the diff range is obvious.
-- If `.parallel-phases/` is gitignored (default), the state itself isn't tracked, but `COMPLETE.md`'s commit-hash field points to the head commit when the final phase merged.
+- COMPLETE.md's commit-hash field points to the head commit when the final phase merged.
+- State lives outside the repo at `~/.claude/parallel-phases/`. No .gitignore entry needed.
 - This skill has no `scripts/` or `assets/`. All orchestration is pure `Agent` tool dispatch. References hold the long-form prompt templates and protocols.
 
 ## Reference files
 
-Load as needed (all live at `C:\Users\zache\.claude\skills\parallel-phases\references\`):
+Load as needed (all live alongside this SKILL.md in the `references/` directory):
 
-- `plan-template.md` — structure of PLAN.md (phases, tasks, fields, example).
-- `state-template.md` — structure of STATE.md (dashboard, per-task rows, status values).
-- `review-gauntlet.md` — exact reviewer dispatch snippet and prompt templates.
-- `fix-agent-prompt.md` — fix-agent prompt template (classify → fix → commit → report).
-- `worktree-protocol.md` — phase merge steps, conflict handling, test gate, rollback.
-- `dependency-analysis.md` — heuristics for grouping tasks into parallel phases.
+- `plan-template.md` -- structure of PLAN.md (phases, tasks, fields, example).
+- `plan-format.md` -- exact PLAN.md/STATE.md file format spec.
+- `state-template.md` -- structure of STATE.md (dashboard, per-task rows, status values).
+- `review-gauntlet.md` -- exact reviewer dispatch snippet and prompt templates.
+- `fix-agent-prompt.md` -- fix-agent prompt template (classify -> fix -> commit -> report).
+- `worktree-protocol.md` -- phase merge steps, conflict handling, test gate, rollback.
+- `dependency-analysis.md` -- heuristics for grouping tasks into parallel phases.
+- `conflict-analysis.md` -- merge-conflict risk protocol and mitigation strategies.
+- `prompt-template.md` -- self-contained task prompt template and anti-patterns.

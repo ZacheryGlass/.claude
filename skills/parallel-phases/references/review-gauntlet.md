@@ -65,7 +65,7 @@ Task completion commits on the task branch:
 Your job is a pure review. Do NOT modify files. Do NOT commit. Do NOT spawn subagents.
 
 Write your full report to this exact path (create the file):
-  <absolute path to>.parallel-phases/phase-N/task-NN-review-<REVIEWER_SLUG>.md
+  <absolute path to><state-dir>/phase-N/task-NN-review-<REVIEWER_SLUG>.md
 
 Report format:
 

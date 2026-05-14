@@ -67,7 +67,7 @@ When all three show `DONE`, flip the task status to `REVIEWED`.
 When any hard-exit condition fires, append a line at the top of STATE.md (immediately under the header) like:
 
 ```markdown
-**BLOCKED:** phase 1 test gate failed -- see .parallel-phases/phase-1/test-log.txt
+**BLOCKED:** phase 1 test gate failed -- see <state-dir>/phase-1/test-log.txt
 ```
 
 The orchestrator checks for this literal prefix `BLOCKED:` in its hard-exit check. User removes the line manually after resolving.

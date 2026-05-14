@@ -21,8 +21,8 @@ Dispatched at: <ISO-8601>
 
 | Task | Branch | Worktree path |
 |---|---|---|
-| task-01-<slug> | phase-1/task-01-<slug> | C:/Users/zache/git/<proj>/../<proj>-task-01-<slug> |
-| task-02-<slug> | phase-1/task-02-<slug> | C:/Users/zache/git/<proj>/../<proj>-task-02-<slug> |
+| task-01-<slug> | phase-1/task-01-<slug> | <cwd>/../<repo>-task-01-<slug> |
+| task-02-<slug> | phase-1/task-02-<slug> | <cwd>/../<repo>-task-02-<slug> |
 ```
 
 The exact worktree path format depends on how `isolation: "worktree"` places worktrees; record whatever the Agent tool returns.
@@ -47,9 +47,9 @@ for each task in phase N (in PLAN.md order):
         -> exit
 
 # 3. Run test command (from PLAN.md)
-<test_command> 2>&1 | tee .parallel-phases/phase-N/test-log.txt
+<test_command> 2>&1 | tee <state-dir>/phase-N/test-log.txt
 if $? != 0:
-    -> append `BLOCKED: phase N tests red -- see .parallel-phases/phase-N/test-log.txt` to STATE.md
+    -> append `BLOCKED: phase N tests red -- see <state-dir>/phase-N/test-log.txt` to STATE.md
     -> exit
 
 # 4. Fast-forward target into integration (preserving integration history)
@@ -57,15 +57,16 @@ git checkout <target_branch>
 git merge --ff-only phase-N/integration
 
 # 5. Write markers + commit
-touch .parallel-phases/phase-N/phase-complete
-touch .parallel-phases/phase-N/merged
-git add .parallel-phases/phase-N/ 2>/dev/null || true   # only if state dir tracked
+touch <state-dir>/phase-N/phase-complete
+touch <state-dir>/phase-N/merged
+# State dir is outside the repo -- no git add needed
 git commit --allow-empty -m "chore(parallel-phases): phase N merged"
 
 # 6. Cleanup
 for each task in phase N:
     git worktree remove <worktree path> --force 2>/dev/null || true
     git branch -D phase-N/task-NN-<slug> 2>/dev/null || true
+git branch -D phase-N/integration 2>/dev/null || true
 git worktree prune
 ```
 
@@ -86,13 +87,13 @@ When a merge conflict aborts the phase:
 1. The orchestrator does NOT attempt `git mergetool` or automated resolution.
 2. User can resolve manually by:
    - `cd` into one of the conflicting worktrees, rebase onto the other task's branch, resolve conflicts, commit, return.
-   - Or rewrite PLAN.md to serialize the conflicting tasks into separate phases (requires restart via `rm -rf .parallel-phases/`).
+   - Or rewrite PLAN.md to serialize the conflicting tasks into separate phases (requires restart via `rm -rf <state-dir>/`).
 3. After user fixes: edit STATE.md to remove the `BLOCKED:` line and reset the RETRY-NEEDED task back to `FIXED`.
 4. Re-run `/parallel-phases` -- the skill will retry the merge from scratch.
 
 ## Rollback on test failure
 
-1. Leave the failing test log at `.parallel-phases/phase-N/test-log.txt`.
+1. Leave the failing test log at `<state-dir>/phase-N/test-log.txt`.
 2. `git checkout <target_branch>` (tests were run on integration; target is untouched if step 3 failed before step 4).
 3. Delete `phase-N/integration` branch: `git branch -D phase-N/integration`.
 4. `BLOCKED:` line in STATE.md points at the log.

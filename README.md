@@ -25,6 +25,7 @@ Claude Code is an interactive command-line interface that provides AI assistance
 - **`skills/`** - Reusable agent skills:
   - `arewedone-g` - Runs a structural completeness review via Gemini CLI to offload token-heavy review work.
   - `gemini-agent` - Delegates arbitrary tasks to Gemini CLI for a second opinion or token savings.
+  - `parallel-phases` - End-to-end orchestrator for multi-task parallel work. Setup phase gathers code intelligence, analyzes merge-conflict risks, groups tasks into maximally-parallel phases, and writes enriched self-contained agent prompts. After an explicit approval gate, the execution phase dispatches Opus agents in worktrees with a per-task 3-reviewer gauntlet (bug-finder + structural + architecture), auto-fix commits, phase merge + test gates, and a doc-update agent at completion. State lives at `~/.claude/parallel-phases/<project-hash>/` (outside the repo). Resilient to `/clear`.
   - `root-cause-tracing` - Traces a bug backward through the call stack, adding instrumentation as needed, to find the original trigger.
   - `skill-creator` - Scaffolds and refines new skills following the official skill authoring guidelines.
 

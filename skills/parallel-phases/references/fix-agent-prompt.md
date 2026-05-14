@@ -26,9 +26,9 @@ Task branch:   phase-N/task-NN-<slug>
 Target branch: <target_branch>
 
 Your inputs (read these first; all 3 reports exist):
-  <absolute path>/.parallel-phases/phase-N/task-NN-review-bugs.md
-  <absolute path>/.parallel-phases/phase-N/task-NN-review-structural.md
-  <absolute path>/.parallel-phases/phase-N/task-NN-review-architecture.md
+  <absolute path>/<state-dir>/phase-N/task-NN-review-bugs.md
+  <absolute path>/<state-dir>/phase-N/task-NN-review-structural.md
+  <absolute path>/<state-dir>/phase-N/task-NN-review-architecture.md
 
 The task's original prompt (for context):
 <paste task prompt from PLAN.md>
@@ -68,7 +68,7 @@ The task's original prompt (for context):
    to step 8 with an empty-fix summary.
 
 8. Write your summary to:
-     <absolute path>/.parallel-phases/phase-N/task-NN-fix.md
+     <absolute path>/<state-dir>/phase-N/task-NN-fix.md
 
    Format:
 
@@ -101,7 +101,7 @@ The task's original prompt (for context):
 - Never merge, rebase, or push. Only commit.
 - Never add Claude as a commit author or co-author. Use default git author only.
 - Do NOT spawn subagents.
-- Do NOT modify .parallel-phases/ files other than writing task-NN-fix.md.
+- Do NOT modify <state-dir>/ files other than writing task-NN-fix.md.
 - If you hit a blocker (e.g., a finding requires major architectural change you cannot
   do in scope), defer it and note the reason.
 
