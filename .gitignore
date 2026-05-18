@@ -74,5 +74,9 @@ paste-cache/
 tasks/
 teams/
 cache/
+parallel-phases/
 tests/last-results.xml
 tests/debug-unicode.ps1
+.last-cleanup
+settings.local.json
+mcp-needs-auth-cache.json

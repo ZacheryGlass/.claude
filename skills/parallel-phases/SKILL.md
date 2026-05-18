@@ -1,6 +1,6 @@
 ---
 name: parallel-phases
-description: End-to-end orchestrator for multi-task parallel work. Phase 1 (setup) gathers code intelligence, analyzes merge-conflict risks, groups tasks into maximally-parallel phases, writes enriched self-contained agent prompts, and generates PLAN.md + STATE.md. Phase 2 (execution) dispatches Opus agents in worktrees with a per-task 3-reviewer gauntlet and auto-fix commits, then a doc-update agent at completion. Asks explicit permission before starting autonomous execution. Resilient to /clear via file-backed state. Triggers on /parallel-phases, "parallelize these tasks", "run these in parallel phases".
+description: End-to-end orchestrator for multi-task parallel work. Phase 1 (setup) gathers code intelligence, analyzes merge-conflict risks, groups tasks into maximally-parallel phases, writes enriched self-contained agent prompts, and generates PLAN.md + STATE.md. Phase 2 (execution) dispatches Opus agents in worktrees with a per-task review-gauntlet sub-skill pass and auto-fix commits, then a doc-update agent at completion. Asks explicit permission before starting autonomous execution. Resilient to /clear via file-backed state. Triggers on /parallel-phases, "parallelize these tasks", "run these in parallel phases".
 ---
 
 # Parallel Phases Orchestrator
@@ -8,7 +8,7 @@ description: End-to-end orchestrator for multi-task parallel work. Phase 1 (setu
 End-to-end orchestrator for multi-task parallel work. Two phases in a single skill invocation:
 
 1. **Setup** (interactive): identify tasks, gather code intelligence, analyze conflicts, group into parallel phases, write enriched prompts, generate PLAN.md + STATE.md, present for approval.
-2. **Execution** (autonomous): dispatch agents, run 3-reviewer gauntlet, apply fixes, merge phases, update docs. Runs unattended until complete or blocked.
+2. **Execution** (autonomous): dispatch agents, run `/review-gauntlet` sub-skill per task, apply fixes, merge phases, update docs. Runs unattended until complete or blocked.
 
 An explicit permission gate separates setup from execution.
 
@@ -128,7 +128,7 @@ Show the user:
 
 Then use `AskUserQuestion` with these options:
 
-- **Begin autonomous execution** -- "The setup is complete and PLAN.md has been written. Starting execution will dispatch multiple Opus agents in parallel across worktrees, each followed by a 3-reviewer gauntlet and auto-fix cycle. This may run continuously for many hours. Approve to begin."
+- **Begin autonomous execution** -- "The setup is complete and PLAN.md has been written. Starting execution will dispatch multiple Opus agents in parallel across worktrees, each followed by the /review-gauntlet sub-skill (5 reviewers) and auto-fix cycle. This may run continuously for many hours. Approve to begin."
 - **Edit PLAN.md first** -- "Leave PLAN.md at <state-dir>/PLAN.md for manual editing. Re-run /parallel-phases after editing to resume."
 - **Cancel** -- "Delete <state-dir> entirely and abort."
 
@@ -164,7 +164,7 @@ If any of these are true, print the reason and exit immediately. Do NOT dispatch
 
 1. `<state-dir>/COMPLETE.md` exists -> print `PARALLEL-PHASES COMPLETE at <commit hash from COMPLETE.md>` and exit.
 2. `<state-dir>/STATE.md` contains an unresolved `BLOCKED:` line -> print that line and exit.
-3. Any `<state-dir>/phase-*/task-*-review-*.md` report has `Status: BLOCKED` -> print task id + reviewer + exit.
+3. Any `<state-dir>/phase-*/task-*-review-gauntlet.md` report has `Status: BLOCKED` -> print task id + reason + exit.
 4. Last test command on the current phase's integration branch shows failures not yet documented in STATE.md -> exit.
 5. `<cwd>` is not a git working tree (`git rev-parse --git-dir` fails) -> print `parallel-phases requires a git repo` and exit. (Worktree isolation is mandatory.)
 
@@ -173,7 +173,7 @@ When exiting on a stop condition that isn't `COMPLETE`, append `BLOCKED: <one-li
 ## Standard 3-line status header (print every invocation)
 
 ```
-PHASE: <N> of <TOTAL> (<phase-name>) | <planning|in-flight|reviewing|fixing|merging|advancing>
+PHASE: <N> of <TOTAL> (<phase-name>) | <planning|in-flight|reviewing|merging|advancing>
 IN-FLIGHT: <count> | DONE: <tasks-done>/<tasks-total> | GATE: <PASS|PENDING|FAIL>
 NEXT: <one-line description of the action this invocation will take>
 ```
@@ -185,8 +185,8 @@ Evaluate in order. Act on the first match. After acting, in **run-to-completion 
 1. **No `<state-dir>`** -> run Setup phase (above).
 2. **In-flight background agents for current phase**: if background Agent notifications for current-phase task/reviewer/fix agents are still pending, print `IN-FLIGHT: N agents; waiting` and exit. Do not dispatch new work.
 3. **Current phase has tasks with status `PENDING`** (not yet dispatched): dispatch them. See "Task dispatch" below.
-4. **Current phase has tasks with status `DONE` but missing reviewer reports**: dispatch the 3-reviewer gauntlet for those tasks. See "Reviewer gauntlet" below.
-5. **Current phase has tasks with status `REVIEWED` but no fix commit**: dispatch a fix agent per such task. See "Fix agent" below.
+4. **Current phase has tasks with status `DONE` but not yet reviewed**: dispatch the `/review-gauntlet` sub-skill for those tasks. See "Reviewer gauntlet" below.
+5. **Current phase has tasks with status `REVIEWED`**: the review-gauntlet sub-skill already applied fixes; transition to `FIXED` per the "Fix handling" section above.
 6. **All current-phase tasks are `FIXED` and no `phase-complete` marker**: write marker, then merge. See `references/worktree-protocol.md`.
 7. **`phase-complete` marker exists but `merged` does not**: run the merge + test protocol. On green: write `merged` marker, commit. On red: append `BLOCKED: phase N test gate failed -- <log path>` to STATE.md and exit.
 8. **`merged` marker exists and `current_phase < total_phases`**: update STATE.md to `current_phase += 1`, commit `chore(parallel-phases): advance to phase N+1`, loop.
@@ -208,37 +208,59 @@ After dispatching:
 - Write `<state-dir>/phase-N/dispatch.md` listing the task id -> worktree path + branch name (`phase-N/task-NN-<slug>`) returned by each Agent call when `isolation="worktree"` is used.
 - Update STATE.md: set each dispatched task's status to `IN-FLIGHT`.
 
-## Reviewer gauntlet (3 parallel per task)
+## Reviewer gauntlet (sub-skill, per task)
 
-When a task completes (status `DONE`), dispatch exactly 3 reviewer agents in parallel for it. **All 3 go in a single message**:
+When a task completes (status `DONE`), dispatch a single `general-purpose` agent per task that invokes the `/review-gauntlet` skill as a sub-skill. The review-gauntlet skill internally launches 5 parallel reviewer agents (structural-completeness, bug-finder, silent-failure-hunter, c-safety-reviewer, compatibility-reviewer), synthesizes their findings, and fixes Critical/Should-Fix items in place.
 
-- `Agent(subagent_type: "bug-finder", model: "opus", run_in_background: true, prompt: ...)` -- output to `<state-dir>/phase-N/task-NN-review-bugs.md`
-- `Agent(subagent_type: "structural-completeness-reviewer", model: "opus", run_in_background: true, prompt: ...)` -- output to `<state-dir>/phase-N/task-NN-review-structural.md`
-- `Agent(subagent_type: "architecture-reviewer", model: "opus", run_in_background: true, prompt: ...)` -- output to `<state-dir>/phase-N/task-NN-review-architecture.md`
+Dispatch one agent per DONE task. **All go in a single message for parallelism**:
 
-See `references/review-gauntlet.md` for the exact prompt template each reviewer receives. Reviewers analyze the diff on the task's branch (`git diff <target_branch>...phase-N/task-NN-<slug>`), NOT the main working copy.
+```
+Agent(
+  description: "review-gauntlet for task-NN",
+  subagent_type: "general-purpose",
+  model: "opus",
+  run_in_background: true,
+  prompt: |
+    You are running the review-gauntlet sub-skill on behalf of the
+    parallel-phases orchestrator.
 
-Update STATE.md: set task status to `REVIEWING`. When all 3 reports exist, set to `REVIEWED`.
+    Working directory: <task worktree path>
+    Branch: phase-N/task-NN-<slug>
+    Target branch: <target_branch>
 
-## Fix agent (one per task)
+    The diff to review is: git diff <target_branch>...phase-N/task-NN-<slug>
 
-When a task reaches status `REVIEWED`, dispatch a fix agent that:
-- Runs **inside the same worktree** as the task (do NOT create a new worktree; pass the existing worktree path in the prompt).
-- Reads all 3 reviewer reports from `<state-dir>/phase-N/`.
-- Classifies each finding: `accept` / `defer` / `reject` (false positive).
-- Implements all `accept` findings.
-- Commits as a follow-up on the same branch: `fix(review): address <N> findings on <task-slug>` (NEVER `--amend`).
-- Writes `<state-dir>/phase-N/task-NN-fix.md` with the classification table and fix commit hash.
+    First, check out the task branch in the worktree. Then invoke the
+    /review-gauntlet skill, passing the diff range above as its target.
 
-Parameters:
-- `subagent_type`: `"general-purpose"`
-- `model`: `"opus"`
-- `isolation`: omit (runs in-place; fix agents inside existing worktree, not a new one)
-- `run_in_background`: `true`
+    The review-gauntlet will:
+    1. Launch 5 reviewer agents in parallel (structural-completeness,
+       bug-finder, silent-failure-hunter, c-safety-reviewer,
+       compatibility-reviewer).
+    2. Synthesize findings into Critical / Should-Fix / Advisory tiers.
+    3. Fix all Critical and Should-Fix items in place.
+    4. Re-verify the build.
 
-See `references/fix-agent-prompt.md` for the full prompt template.
+    After the skill completes, write the synthesized report to:
+      <state-dir>/phase-N/task-NN-review-gauntlet.md
 
-Update STATE.md: status -> `FIXING` on dispatch, `FIXED` when fix commit lands (or the fix agent reports no actionable findings and writes an empty-fix summary).
+    Include the full tiered findings and what was fixed. If the skill
+    committed fixes, record the fix commit hash in the report.
+)
+```
+
+Update STATE.md: set task status to `REVIEWING` on dispatch. When the review-gauntlet report exists, set to `REVIEWED`.
+
+## Fix handling (integrated into review-gauntlet)
+
+The `/review-gauntlet` sub-skill already fixes Critical and Should-Fix items as its Step 3, committing directly on the task branch. There is no separate fix agent dispatch.
+
+When the review-gauntlet agent completes and `<state-dir>/phase-N/task-NN-review-gauntlet.md` exists:
+- If the report contains a fix commit hash: task status -> `FIXED`.
+- If the report shows no Critical or Should-Fix findings (all Advisory or clean): task status -> `FIXED` (no fix needed).
+- If the report shows `Status: BLOCKED` (e.g., unfixable issue): append `BLOCKED: review-gauntlet blocked on task NN -- <reason>` to STATE.md and exit.
+
+There is no intermediate `FIXING` status. The transition is `REVIEWING` -> `FIXED` (or `BLOCKED`).
 
 ## Documentation update (after final phase merges)
 
@@ -281,9 +303,8 @@ Wait for the doc agent to complete before writing COMPLETE.md.
 Enforce BEFORE every dispatch:
 
 - **Task dispatch**: max 8 parallel Agent calls per phase. If a phase has >8 tasks, split into waves 1A/1B/... per `references/plan-template.md`.
-- **Reviewer gauntlet**: exactly 3 agents per task (bug-finder, structural-completeness-reviewer, architecture-reviewer). Dispatch all three in one message for parallelism.
-- **Fix agents**: one per task, all fix agents for a phase go out in one message.
-- **Global**: if combined in-flight agents across all three kinds would exceed 16 on this run, split across invocations.
+- **Review-gauntlet**: one agent per task (the sub-skill internally fans out to 5 reviewers and handles fixes). Dispatch all review-gauntlet agents for the phase in one message.
+- **Global**: if combined in-flight agents (task + review-gauntlet) would exceed 16 on this run, split across invocations.
 
 ## Model selection
 
@@ -314,7 +335,7 @@ Follows global CLAUDE.md:
   - Setup: `chore(parallel-phases): initialize plan`
   - Phase merge: `chore(parallel-phases): phase N merged`
   - Phase advance: `chore(parallel-phases): advance to phase N+1`
-  - Fix agent: `fix(review): address <N> findings on <task-slug>`
+  - Review-gauntlet fixes: committed by the sub-skill on the task branch (message format per `/review-gauntlet`)
   - Final: `chore(parallel-phases): complete` (optional -- COMPLETE.md alone is the signal)
 
 ## Run modes
@@ -327,8 +348,7 @@ No mode flag is needed. The skill behaves the same either way; the only differen
 ## Failure modes and escape hatches
 
 - **Task agent crashed / produced nothing useful**: mark status `FAILED` in STATE.md. Reviewers still run against the diff (which may be empty). If a task produced no commits, the fix agent reports "nothing to fix." The phase still advances provided reviews don't `BLOCK`. Re-dispatch by manually setting status back to `PENDING`.
-- **Reviewer agent timed out / failed**: mark that reviewer `RETRY-NEEDED` in the task's row. Next invocation re-dispatches only the missing reviewer(s).
-- **Fix agent failed**: status `FIX-FAILED`. Append `BLOCKED: fix agent failed on task <id>` to STATE.md.
+- **Review-gauntlet agent timed out / failed**: mark task `RETRY-NEEDED` in STATE.md. Next invocation re-dispatches the review-gauntlet for that task.
 - **Merge conflict**: abort, `BLOCKED: merge conflict`. User resolves manually (edit in the worktree, commit, re-run skill).
 - **Test gate red**: `BLOCKED: tests red`. User triages.
 - **Manual reset**: delete `<state-dir>` entirely, `git worktree prune`, remove `phase-*` branches.
@@ -338,7 +358,7 @@ No mode flag is needed. The skill behaves the same either way; the only differen
 
 - Background `Agent` calls notify the main session on completion -- do not poll with sleep.
 - Use `Read` + `Glob` on `<state-dir>/**/*` to inventory state.
-- Reviewer reports live alongside task outputs under the phase directory so the diff range is obvious.
+- Review-gauntlet reports (`task-NN-review-gauntlet.md`) live under the phase directory alongside task outputs.
 - COMPLETE.md's commit-hash field points to the head commit when the final phase merged.
 - State lives outside the repo at `~/.claude/parallel-phases/`. No .gitignore entry needed.
 - This skill has no `scripts/` or `assets/`. All orchestration is pure `Agent` tool dispatch. References hold the long-form prompt templates and protocols.
@@ -350,8 +370,7 @@ Load as needed (all live alongside this SKILL.md in the `references/` directory)
 - `plan-template.md` -- structure of PLAN.md (phases, tasks, fields, example).
 - `plan-format.md` -- exact PLAN.md/STATE.md file format spec.
 - `state-template.md` -- structure of STATE.md (dashboard, per-task rows, status values).
-- `review-gauntlet.md` -- exact reviewer dispatch snippet and prompt templates.
-- `fix-agent-prompt.md` -- fix-agent prompt template (classify -> fix -> commit -> report).
+- (Review and fix are handled by the `/review-gauntlet` sub-skill -- no local reference files needed.)
 - `worktree-protocol.md` -- phase merge steps, conflict handling, test gate, rollback.
 - `dependency-analysis.md` -- heuristics for grouping tasks into parallel phases.
 - `conflict-analysis.md` -- merge-conflict risk protocol and mitigation strategies.
