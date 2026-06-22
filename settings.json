@@ -1,6 +1,5 @@
 {
   "env": {
-    "DISABLE_TELEMETRY": "1",
     "CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL": "1",
     "ENABLE_TOOL_SEARCH": "true"
   },
@@ -73,43 +72,12 @@
       "Bash(git -c core.editor=true rebase --continue)",
       "Bash(aws:*)"
     ],
-    "deny": [
-      "Bash(git push:*)",
-      "Bash(git pull:*)"
-    ],
-    "ask": []
+    "deny": [],
+    "ask": [],
+    "defaultMode": "auto"
   },
-  "model": "opus[1m]",
+  "model": "claude-opus-4-8",
   "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "py -c \"import os,sys,runpy;runpy.run_path(os.path.expanduser('~/.claude/hooks/'+sys.argv[1]),run_name='__main__')\" github_issue_guard.py"
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|MultiEdit|Write|NotebookEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "py -c \"import os,sys,runpy;runpy.run_path(os.path.expanduser('~/.claude/hooks/'+sys.argv[1]),run_name='__main__')\" protect_claude_md.py"
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__github__create_issue|mcp__github__add_issue_comment|mcp__github__update_issue",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "py -c \"import os,sys,runpy;runpy.run_path(os.path.expanduser('~/.claude/hooks/'+sys.argv[1]),run_name='__main__')\" github_issue_guard.py"
-          }
-        ]
-      }
-    ],
     "PostToolUse": [
       {
         "matcher": "Edit|MultiEdit|Write|NotebookEdit",
@@ -128,10 +96,15 @@
     "refreshInterval": 1
   },
   "enabledPlugins": {
-    "data@knowledge-work-plugins": false,
+    "data@knowledge-work-plugins": true,
     "superpowers@claude-plugins-official": false,
     "code-review@claude-plugins-official": false,
-    "clangd-lsp@claude-plugins-official": true
+    "clangd-lsp@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "document-skills@anthropic-agent-skills": false,
+    "axiom-planning@foundryside-marketplace": true,
+    "playwright@claude-plugins-official": true,
+    "pr-review-toolkit@claude-plugins-official": false
   },
   "extraKnownMarketplaces": {
     "knowledge-work-plugins": {
@@ -151,9 +124,26 @@
         "source": "git",
         "url": "https://github.com/anthropics/claude-plugins-official.git"
       }
+    },
+    "anthropic-agent-skills": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/skills"
+      }
+    },
+    "foundryside-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "tachyon-beep/skillpacks"
+      }
     }
   },
-  "effortLevel": "medium",
+  "effortLevel": "xhigh",
   "autoUpdatesChannel": "latest",
-  "skipDangerousModePermissionPrompt": true
+  "skipDangerousModePermissionPrompt": true,
+  "theme": "dark-daltonized",
+  "teammateMode": "auto",
+  "agentPushNotifEnabled": true,
+  "skipAutoPermissionPrompt": true,
+  "skipWorkflowUsageWarning": true
 }

@@ -80,3 +80,9 @@ tests/debug-unicode.ps1
 .last-cleanup
 settings.local.json
 mcp-needs-auth-cache.json
+/*.lock
+/jobs
+/daemon
+/.last-update-result.json
+/daemon.status.json
+/agent-memory

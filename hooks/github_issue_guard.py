@@ -66,15 +66,29 @@ def check_gh_command(command):
     """Check gh CLI commands for prohibited content."""
     if not any(gh_cmd in command for gh_cmd in ['gh issue create', 'gh issue edit', 'gh issue comment']):
         return False, None
-    
-    command_lower = command.lower()
+
+    # Strip assignee flag values before scanning -- assigning the literal
+    # GitHub user "claude" (the Claude Code GitHub App) is a legitimate
+    # operation, not a content reference.
+    sanitized = re.sub(
+        r'(?i)--(?:add-assignee|remove-assignee|assignee)[ =]\S+',
+        '',
+        command,
+    )
+
+    # Also strip `@claude` / `@anthropic-*` mentions -- these trigger the
+    # Claude Code GitHub Action workflow and are a legitimate use, not a
+    # "Generated with Claude" content reference.
+    sanitized = re.sub(r'(?i)@(?:claude|anthropic)[\w-]*', '', sanitized)
+
+    command_lower = sanitized.lower()
     prohibited_terms = ['claude', 'anthropic']
-    
-    # Check for prohibited terms in the entire command
+
+    # Check for prohibited terms in the (sanitized) command
     for term in prohibited_terms:
         if term in command_lower:
             return True, f"GitHub issue command contains '{term}' - removing all Claude/Anthropic references"
-    
+
     return False, None
 
 def suggest_cleaned_gh_command(command):
