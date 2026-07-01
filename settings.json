@@ -92,7 +92,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "~/.claude/statusline.exe",
+    "command": "~/.claude/statusline.cmd",
     "refreshInterval": 1
   },
   "enabledPlugins": {

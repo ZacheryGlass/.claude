@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build statusline.exe (or platform-native binary) from statusline.go.
+# Build statusline binaries from statusline.go.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -11,10 +11,12 @@ fi
 
 [ -f go.mod ] || "$GO" mod init statusline >/dev/null
 
-OUT=statusline
+"$GO" build -trimpath -ldflags='-s -w' -o statusline statusline.go
+GOOS=darwin GOARCH=arm64 "$GO" build -trimpath -ldflags='-s -w' -o statusline-darwin-arm64 statusline.go
+GOOS=darwin GOARCH=amd64 "$GO" build -trimpath -ldflags='-s -w' -o statusline-darwin-amd64 statusline.go
+
 case "$(uname -s 2>/dev/null || echo)" in
-    MINGW*|MSYS*|CYGWIN*|*_NT-*) OUT=statusline.exe ;;
+    MINGW*|MSYS*|CYGWIN*|*_NT-*) "$GO" build -trimpath -ldflags='-s -w' -o statusline.exe statusline.go ;;
 esac
 
-"$GO" build -trimpath -ldflags='-s -w' -o "$OUT" statusline.go
-ls -la "$OUT"
+ls -la statusline statusline-darwin-arm64 statusline-darwin-amd64 2>/dev/null || true

@@ -77,6 +77,7 @@ cache/
 parallel-phases/
 tests/last-results.xml
 tests/debug-unicode.ps1
+/statusline
 .last-cleanup
 settings.local.json
 mcp-needs-auth-cache.json

@@ -1,0 +1,3 @@
+statusline.cmd text eol=lf
+statusline.exe binary
+statusline-darwin-* binary
