@@ -84,7 +84,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "py -c \"import os,sys,runpy;runpy.run_path(os.path.expanduser('~/.claude/hooks/'+sys.argv[1]),run_name='__main__')\" emoji_remover.py"
+            "command": "~/.claude/hooks/emoji_remover.cmd"
           }
         ]
       }
