@@ -41,6 +41,9 @@ projects/
 ide/
 plans/
 plugins/cache/
+telemetry/
+session-env/
+downloads/
 
 # Local development
 local/
