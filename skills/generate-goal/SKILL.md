@@ -26,10 +26,10 @@ Turn the accumulated understanding in the current conversation into one ready-to
 4. **Tighten and length-check.** Every sentence earns its place. Cut recap, narration, and boilerplate framing; keep decisions and specifics. Succinct but complete. Then **verify the length is under 4000 chars** by piping the composed prompt through the checker — do not skip this, the limit is enforced and rejects overlong prompts:
 
    ```
-   python "C:\Users\zache\.claude\skills\generate-goal\scripts\check_goal_length.py" path/to/draft.txt
+   printf '%s' "<draft>" | python3 "${CLAUDE_SKILL_DIR}/scripts/check_goal_length.py"
    ```
 
-   (or pipe via stdin). If it reports FAIL, tighten and re-check until PASS before outputting. Write the draft to a scratch file to run the check; delete it after — never leave the prompt on disk.
+   (`python` on Windows). Always pipe via stdin — never write the draft to a file, not even a scratch file. If it reports FAIL, tighten and re-check until PASS before outputting.
 5. **Output** the final prompt in one fenced code block, then offer to adjust scope or constraints. Do not save it.
 
 ## What makes the completion condition hold up
