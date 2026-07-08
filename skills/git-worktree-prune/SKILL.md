@@ -11,7 +11,8 @@ Remove stale worktrees and local branches from old sessions **without ever losin
 
 - A **branch** is deleted only when every commit on it is reachable from some *other* surviving ref (another local branch, a remote-tracking branch `origin/*`, or a tag). Branches with unique commits are kept.
 - A **worktree** is removed only when it is **clean** (no uncommitted or untracked changes). The branch it held is preserved.
-- The **primary worktree**, the **current branch**, and `main`/`master` are always kept.
+- A clean worktree that still holds **ignored sensitive files** (`.env`, private keys, local `*.db`/`*.sqlite`, `.npmrc`, etc.) is **kept**, since `git worktree remove` would delete those local-only files. Non-sensitive ignored files (build caches, `node_modules`) don't block removal, but the entry count is reported. Override with `--remove-ignored`.
+- The **primary worktree**, the **current branch**, `main`/`master`, and the repo's **detected default branch** (from `origin/HEAD` or `init.defaultBranch`, e.g. `trunk`/`develop`) are always kept.
 
 ## Usage
 
@@ -24,6 +25,7 @@ python scripts/prune_git.py --repo <path> --apply    # execute after reviewing t
 
 Flags:
 - `--fetch` — run `git fetch --all --prune` first so branches already merged/pushed to a remote are recognized as deletable. Without it the tool is more *conservative* (stale remotes only ever cause it to keep more, never lose work).
+- `--remove-ignored` — allow removal of clean worktrees even when they hold ignored sensitive files like `.env` (default: keep them).
 - `--protect BRANCH` — always keep this branch (repeatable). Use for branches with no unique commits that you still want to keep (see below).
 - `--repo PATH` — a path inside the target repo (default: cwd).
 
@@ -38,4 +40,5 @@ Every removal is printed with its reason; a branch shown as `KEEP -- N unique co
 - Never deletes remote-tracking refs, tags, or the reflog — only local branches and worktree checkouts.
 - Removing a worktree that holds a branch (even a protected one like `main`) frees the branch without deleting it; you can then check it out in the primary worktree.
 - Worktrees whose directory is already gone are cleaned via `git worktree prune`.
+- Sensitive-file detection matches the basenames git reports for `status --ignored`. A sensitive file nested *inside* an ignored directory (git reports only the directory) isn't individually flagged — rare, but review the REMOVE list's "N ignored entries" note if unsure.
 - On Windows, run under Git Bash / a UTF-8 console (`PYTHONIOENCODING=utf-8`) if paths contain non-ASCII characters.

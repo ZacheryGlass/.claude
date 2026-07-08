@@ -6,12 +6,28 @@ is reachable from some OTHER surviving ref (another local branch, a remote-track
 branch, or a tag). A worktree is removed only when it is clean (no uncommitted or
 untracked changes). Anything with unique work is kept and reported.
 
+Clean worktrees that still hold *ignored* sensitive local files (.env, private keys,
+local databases) are kept too -- `git worktree remove` would delete those otherwise.
+Override with --remove-ignored.
+
 Dry-run by default -- prints the plan and changes nothing. Pass --apply to execute.
 """
 import argparse
 import os
 import subprocess
 import sys
+from fnmatch import fnmatch
+
+# Ignored local-only files worth protecting from `git worktree remove`. Matched
+# case-insensitively against the basename of each ignored entry.
+SENSITIVE_IGNORED = [
+    ".env", ".env.*", "*.env", ".envrc",
+    "*.pem", "*.key", "*.p12", "*.pfx", "*.keystore", "*.jks",
+    "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519",
+    "*.sqlite", "*.sqlite3", "*.db",
+    ".netrc", ".npmrc", ".pypirc",
+    "credentials", "credentials.*", "secrets", "secrets.*", "*.secret",
+]
 
 
 def git(args, cwd, check=True):
@@ -46,6 +62,47 @@ def parse_worktrees(repo):
     return wts
 
 
+def _unquote(path):
+    """git porcelain wraps paths with special chars in double quotes."""
+    if len(path) >= 2 and path[0] == '"' and path[-1] == '"':
+        return path[1:-1]
+    return path
+
+
+def ignored_entries(repo, path):
+    """Ignored files/dirs present in a worktree (the '!!' porcelain lines)."""
+    out = git(["-C", path, "status", "--porcelain", "--ignored"], repo, check=False)
+    return [_unquote(l[3:]) for l in out.splitlines() if l.startswith("!!")]
+
+
+def sensitive_ignored(entries):
+    """Basenames of ignored entries that match a SENSITIVE_IGNORED pattern."""
+    hits = set()
+    for e in entries:
+        base = os.path.basename(e.rstrip("/"))
+        if any(fnmatch(base, pat) for pat in SENSITIVE_IGNORED):
+            hits.add(base)
+    return sorted(hits)
+
+
+def detect_default_branches(repo):
+    """Branch names that a remote HEAD (origin/HEAD, ...) points at, plus the
+    configured init.defaultBranch -- protected even when they hold no unique work."""
+    names = set()
+    out = git(["for-each-ref", "--format=%(refname) %(symref)", "refs/remotes"],
+              repo, check=False)
+    for line in out.splitlines():
+        ref, _, sym = line.partition(" ")
+        if ref.endswith("/HEAD") and sym.startswith("refs/remotes/"):
+            comps = sym.split("/", 3)          # refs/remotes/<remote>/<branch...>
+            if len(comps) == 4 and comps[3]:
+                names.add(comps[3])
+    cfg = git(["config", "--get", "init.defaultBranch"], repo, check=False).strip()
+    if cfg:
+        names.add(cfg)
+    return names
+
+
 def unique_commits(repo, branch, excluded):
     """Commits on refs/heads/<branch> not reachable from any ref except itself and
     the excluded set (branches already slated for deletion)."""
@@ -66,6 +123,8 @@ def main():
                     help="actually remove worktrees / delete branches (default: dry-run)")
     ap.add_argument("--fetch", action="store_true",
                     help="run 'git fetch --all --prune' first so remote-tracking refs are current")
+    ap.add_argument("--remove-ignored", action="store_true",
+                    help="remove clean worktrees even if they hold ignored sensitive files (e.g. .env)")
     ap.add_argument("--protect", action="append", default=[], metavar="BRANCH",
                     help="branch name to always keep (repeatable)")
     ap.add_argument("--repo", default=".", help="path inside the target repo (default: cwd)")
@@ -116,7 +175,17 @@ def main():
             if not reach:
                 print(f"  KEEP  {p}  [detached {head[:9]}]  -- commit not on any branch")
                 continue
-        print(f"  REMOVE {p}  [{label}]  -- clean")
+        ignored = ignored_entries(repo, p)
+        sensitive = sensitive_ignored(ignored)
+        if sensitive and not args.remove_ignored:
+            print(f"  KEEP  {p}  [{label}]  -- clean but holds ignored sensitive file(s): "
+                  f"{', '.join(sensitive)} (use --remove-ignored to override)")
+            if wt["branch"]:
+                kept_wt_branches.add(wt["branch"])
+            continue
+        extra = (f" ({len(ignored)} ignored entr{'y' if len(ignored) == 1 else 'ies'} "
+                 f"will be deleted)") if ignored else ""
+        print(f"  REMOVE {p}  [{label}]  -- clean{extra}")
         wt_to_remove.append(p)
 
     if args.apply:
@@ -129,7 +198,12 @@ def main():
 
     # ---- Phase 2: branches ----
     print("\n--- local branches ---")
-    protected = {cur_branch, "main", "master", "HEAD"} | set(args.protect) | kept_wt_branches
+    default_branches = detect_default_branches(repo)
+    protected = ({cur_branch, "main", "master", "HEAD"} | default_branches
+                 | set(args.protect) | kept_wt_branches)
+    extra_defaults = sorted(default_branches - {"main", "master"})
+    if extra_defaults:
+        print(f"  (default branch protected: {', '.join(extra_defaults)})")
     branches = [b for b in git(["for-each-ref", "--format=%(refname:short)", "refs/heads"], repo).split()]
 
     to_delete, kept = [], []
