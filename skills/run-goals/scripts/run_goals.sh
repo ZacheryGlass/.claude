@@ -18,6 +18,11 @@ DRY_RUN=0
 KEEP=0
 TIMEOUT=0
 
+# Injected into every child via --append-system-prompt. Observed stall mode:
+# a headless child ends its turn "to wait" for background Bash jobs, the
+# process exits, and the jobs die with it — the run then reports exit 0.
+HEADLESS_RULE='Headless goal run: ending your turn ends the session process, and any background Bash jobs are killed with it. Run long pipeline stages in the foreground, or poll them to completion inside the same turn; never end a turn while work is still pending. Commit and push your work before finishing - deliverables (commits, PR) are the only trusted evidence of completion.'
+
 usage() {
 cat <<'EOF'
 Usage: run_goals.sh [options] [-g "GOAL TEXT" ...] [goal-file ...]
@@ -122,7 +127,8 @@ launch() {
   local out="$RESULTS_DIR/$slug.json" err="$RESULTS_DIR/$slug.err"
   local goal_text
   goal_text="$(cat "$file")"
-  local cmd=(claude -p "/goal ${goal_text}" --output-format json --permission-mode "$PERM_MODE")
+  local cmd=(claude -p "/goal ${goal_text}" --output-format json --permission-mode "$PERM_MODE" \
+             --append-system-prompt "$HEADLESS_RULE")
   [ -n "$MODEL" ]         && cmd+=(--model "$MODEL")
   [ -n "$ALLOWED_TOOLS" ] && cmd+=(--allowedTools "$ALLOWED_TOOLS")
   [ "$WORKTREE" -eq 1 ]   && cmd+=(--worktree "goal-${slug}")
@@ -180,8 +186,11 @@ done
 wait
 
 # Summary (stdout is the only artifact — run dir is deleted on exit)
+DEF="$(default_ref)"
 echo ""
 echo "==== run-goals summary ===="
+echo "(exit 0 means the child session ended cleanly, NOT that the goal completed —"
+echo " check each work: line and verify deliverables (commits/PR) before trusting OK)"
 overall=0
 for slug in "${SLUGS[@]}"; do
   rc="$(cat "$RESULTS_DIR/$slug.exit" 2>/dev/null || echo '?')"
@@ -194,10 +203,23 @@ for slug in "${SLUGS[@]}"; do
   status="OK"
   if [ "$rc" != "0" ] || [ "$is_error" = "true" ]; then status="FAIL"; overall=1; fi
   [ "$rc" = "143" ] && [ "$TIMEOUT" -gt 0 ] && status="TIMEOUT"
-  branch="-"
-  [ "$WORKTREE" -eq 1 ] && branch="worktree-goal-${slug}"
+  branch="-"; work=""
+  if [ "$WORKTREE" -eq 1 ]; then
+    branch="worktree-goal-${slug}"
+    wt="$REPO/.claude/worktrees/goal-$slug"
+    if [ -d "$wt" ]; then
+      # children may switch branches — report the worktree's actual HEAD
+      head_br="$(git -C "$wt" branch --show-current 2>/dev/null)"
+      [ -n "$head_br" ] && branch="$head_br"
+      commits="$(git -C "$wt" rev-list --count "$DEF..HEAD" 2>/dev/null || echo '?')"
+      dirty=""
+      [ -n "$(git -C "$wt" status --porcelain 2>/dev/null | head -1)" ] && dirty=", uncommitted changes"
+      work="        work: $commits commit(s) beyond $DEF$dirty"
+    fi
+  fi
   echo ""
   echo "[$status] $slug  exit=$rc  session=${session:-?}  branch=$branch"
+  [ -n "$work" ] && echo "$work"
   if [ -n "$result" ]; then
     printf '%s\n' "$result" | sed 's/^/        /'
   fi
@@ -207,7 +229,6 @@ done
 
 # Auto-prune zero-work worktrees (clean + no commits beyond default branch)
 if [ "$WORKTREE" -eq 1 ] && [ "$DRY_RUN" -eq 0 ]; then
-  DEF="$(default_ref)"
   echo ""
   echo "---- worktree auto-prune (base: $DEF) ----"
   leftovers=0
@@ -215,17 +236,24 @@ if [ "$WORKTREE" -eq 1 ] && [ "$DRY_RUN" -eq 0 ]; then
     wt="$REPO/.claude/worktrees/goal-$slug"
     br="worktree-goal-$slug"
     [ -d "$wt" ] || continue
+    # the child session has exited, so any session lock it left is stale
+    git -C "$REPO" worktree unlock "$wt" >/dev/null 2>&1
     dirty="$(git -C "$wt" status --porcelain 2>/dev/null | head -1)"
-    unique="$(git -C "$REPO" rev-list --count "$DEF..$br" 2>/dev/null || echo '?')"
+    # judge the worktree by its actual HEAD — children may switch branches
+    head_br="$(git -C "$wt" branch --show-current 2>/dev/null)"
+    [ -z "$head_br" ] && head_br="$br"
+    unique="$(git -C "$wt" rev-list --count "$DEF..HEAD" 2>/dev/null || echo '?')"
     if [ -z "$dirty" ] && [ "$unique" = "0" ]; then
-      git -C "$REPO" worktree remove "$wt" >/dev/null 2>&1 \
-        && git -C "$REPO" branch -D "$br" >/dev/null 2>&1 \
-        && echo "pruned: $br (no work produced)" \
-        || { echo "kept:   $br (prune failed — clean up manually)"; leftovers=1; }
+      if git -C "$REPO" worktree remove "$wt" >/dev/null 2>&1; then
+        git -C "$REPO" branch -D "$br" >/dev/null 2>&1
+        echo "pruned: goal-$slug (no work produced)"
+      else
+        echo "kept:   goal-$slug (prune failed — clean up manually)"; leftovers=1
+      fi
     else
-      reason="has $unique commit(s) beyond $DEF"
+      reason="on $head_br, $unique commit(s) beyond $DEF"
       [ -n "$dirty" ] && reason="$reason, uncommitted changes"
-      echo "kept:   $br ($reason) — review at $wt"
+      echo "kept:   goal-$slug ($reason) — review at $wt"
       leftovers=1
     fi
   done

@@ -79,6 +79,21 @@ process_worktree() {
   esac
   SEEN_BRANCHES="$SEEN_BRANCHES $br"
 
+  # Unlock stale session locks: claude locks the worktree with its pid in the
+  # reason; a dead pid means the lock only blocks cleanup.
+  local gd lockpid
+  gd="$(git -C "$wt" rev-parse --absolute-git-dir 2>/dev/null)"
+  if [ -n "$gd" ] && [ -f "$gd/locked" ]; then
+    lockpid="$(sed -n 's/.*pid \([0-9][0-9]*\).*/\1/p' "$gd/locked" | head -1)"
+    if [ -n "$lockpid" ] && kill -0 "$lockpid" 2>/dev/null; then
+      echo "KEEP   worktree $wt -- locked by live session (pid $lockpid)"
+      kept=$((kept + 1))
+      return
+    fi
+    [ "$APPLY" -eq 1 ] && git -C "$REPO" worktree unlock "$wt" >/dev/null 2>&1
+    echo "UNLOCK worktree $wt -- stale lock (owner pid ${lockpid:-unknown} not running)"
+  fi
+
   local dirty unique
   dirty="$(git -C "$wt" status --porcelain 2>/dev/null | head -1)"
   unique="$(git -C "$REPO" rev-list --count "$DEF..$br" 2>/dev/null || echo '?')"
@@ -110,7 +125,10 @@ process_worktree() {
   if [ -n "$dirty" ] && [ "$FORCE" -eq 0 ]; then
     return   # worktree kept -> branch stays checked out
   fi
-  delete_branch "$br" "$unique"
+  case "$br" in
+    worktree-goal-*) delete_branch "$br" "$unique" ;;
+    *) echo "LEAVE  branch $br -- outside worktree-goal-* scope" ;;
+  esac
 }
 
 delete_branch() {
