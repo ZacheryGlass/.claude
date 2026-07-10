@@ -155,14 +155,18 @@ launch() {
   echo "[$(date +%H:%M:%S)] done:   $slug (exit $rc)"
 }
 
-# Materialize every goal (inline texts + files) into the ephemeral run dir
+# Materialize every goal (inline texts + files) into the ephemeral run dir.
+# RUN_TAG (runner PID) keeps worktree/branch names unique across CONCURRENT
+# invocations — two runs launched with similar goal text otherwise slugify to
+# the same worktree and collide.
+RUN_TAG="$$"
 i=0
 SLUGS=()
 add_goal() {
   # $1=slug base  $2=source (text|file)  $3=payload
   i=$((i + 1))
   local slug
-  slug="$(printf '%02d' "$i")-$1"
+  slug="$(printf '%02d' "$i")-r${RUN_TAG}-$1"
   SLUGS+=("$slug")
   if [ "$2" = "text" ]; then
     printf '%s' "$3" > "$RESULTS_DIR/$slug.goal.md"
