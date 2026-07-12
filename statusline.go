@@ -418,7 +418,9 @@ func tailLines(path string, n int) ([]string, error) {
 // --- Git status (one invocation, returns branch + dirty/ahead/behind suffix). ---
 
 func readGitStatus(dir string) (branch, status string) {
-	cmd := exec.Command("git", "-C", dir, "status", "--branch", "--porcelain=v1")
+	// --no-optional-locks: never take index.lock to refresh the index. Prevents
+	// lock contention with the user's own git ops and other concurrent sessions.
+	cmd := exec.Command("git", "--no-optional-locks", "-C", dir, "status", "--branch", "--porcelain=v1")
 	out, err := cmd.Output()
 	if err != nil {
 		return "", ""
@@ -430,7 +432,7 @@ func readGitStatus(dir string) (branch, status string) {
 	header := lines[0]
 	switch {
 	case strings.HasPrefix(header, "## HEAD"):
-		short, err := exec.Command("git", "-C", dir, "rev-parse", "--short", "HEAD").Output()
+		short, err := exec.Command("git", "--no-optional-locks", "-C", dir, "rev-parse", "--short", "HEAD").Output()
 		if err == nil {
 			branch = "HEAD@" + strings.TrimSpace(string(short))
 		}
