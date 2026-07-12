@@ -33,6 +33,11 @@ git worktree. Results print to stdout; nothing persists on disk.
 
 Options:
   -g, --goal TEXT           Goal condition passed inline (repeatable)
+  -R, --resume SLUG[:SID]   Resume an interrupted goal session in its existing
+                            worktree (repeatable). SLUG = worktree name minus
+                            'goal-'. SID defaults to the deterministic UUIDv5
+                            of the slug (runs launched before session naming
+                            existed need the explicit :SID form).
   -c, --concurrency N       Max parallel sessions (default 3)
   -m, --model MODEL         Model for child sessions (default: user default)
   -p, --permission-mode M   default|acceptEdits|dontAsk|bypassPermissions
@@ -53,9 +58,11 @@ die() { echo "run_goals: $*" >&2; exit 1; }
 
 GOAL_FILES=()
 GOAL_TEXTS=()
+RESUMES=()
 while [ $# -gt 0 ]; do
   case "$1" in
     -g|--goal)            GOAL_TEXTS+=("$2"); shift 2 ;;
+    -R|--resume)          RESUMES+=("$2"); shift 2 ;;
     -c|--concurrency)     CONCURRENCY="$2"; shift 2 ;;
     -m|--model)           MODEL="$2"; shift 2 ;;
     -p|--permission-mode) PERM_MODE="$2"; shift 2 ;;
@@ -72,7 +79,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-TOTAL=$(( ${#GOAL_TEXTS[@]} + ${#GOAL_FILES[@]} ))
+TOTAL=$(( ${#GOAL_TEXTS[@]} + ${#GOAL_FILES[@]} + ${#RESUMES[@]} ))
 [ "$TOTAL" -gt 0 ] || { usage; exit 1; }
 command -v claude >/dev/null 2>&1 || die "claude CLI not found on PATH"
 if [ "${#GOAL_FILES[@]}" -gt 0 ]; then
@@ -121,28 +128,70 @@ slugify_file() {
     | tr -cs 'a-z0-9' '-' | sed 's/^[0-9-]*//;s/-*$//' | cut -c1-32
 }
 
+# The session ID is a deterministic UUIDv5 of the slug — the slug (== the
+# worktree name) effectively NAMES the session. If a run is killed mid-flight,
+# the session ID is recomputable from the worktree name alone (no output
+# capture needed): transcripts persist under ~/.claude/projects/ keyed by the
+# child's cwd, and resume = (cd <worktree> && claude --resume <sid>).
+# RUN_TAG in the slug keeps IDs unique across runs (a reused slug would
+# collide with the existing session of the same name).
+sid_for_slug() {
+  python3 -c "import uuid,sys; print(uuid.uuid5(uuid.NAMESPACE_URL, 'run-goals://' + sys.argv[1]))" "$1" 2>/dev/null
+}
+
+resume_hint() {
+  # $1=slug — where and how to resume this goal's session. An explicit SID
+  # (from -R slug:sid) overrides the derived one.
+  local sid
+  sid="$(cat "$RESULTS_DIR/$1.resume" 2>/dev/null)"
+  [ -n "$sid" ] || sid="$(sid_for_slug "$1")"
+  local loc="$REPO"
+  [ "$WORKTREE" -eq 1 ] && loc="$REPO/.claude/worktrees/goal-$1"
+  echo "(cd $loc && claude --resume $sid)"
+}
+
 launch() {
   # $1=goal text file (inside run dir)  $2=slug
   local file="$1" slug="$2"
   local out="$RESULTS_DIR/$slug.json" err="$RESULTS_DIR/$slug.err"
-  local goal_text
-  goal_text="$(cat "$file")"
-  local cmd=(claude -p "/goal ${goal_text}" --output-format json --permission-mode "$PERM_MODE" \
-             --append-system-prompt "$HEADLESS_RULE")
-  [ -n "$MODEL" ]         && cmd+=(--model "$MODEL")
-  [ -n "$ALLOWED_TOOLS" ] && cmd+=(--allowedTools "$ALLOWED_TOOLS")
-  [ "$WORKTREE" -eq 1 ]   && cmd+=(--worktree "goal-${slug}")
+  local cmd sid runcwd="$REPO" verb="launch"
+  if [ -f "$RESULTS_DIR/$slug.resume" ]; then
+    # Resume mode: re-enter an interrupted session inside its EXISTING
+    # worktree. Transcripts are keyed by the child's cwd, so run from the
+    # worktree and do NOT pass --worktree (it already exists).
+    local sid_override
+    sid_override="$(cat "$RESULTS_DIR/$slug.resume")"
+    sid="${sid_override:-$(sid_for_slug "$slug")}"
+    runcwd="$REPO/.claude/worktrees/goal-$slug"
+    verb="resume"
+    cmd=(claude -p 'Interrupted mid-goal: resume from the committed worktree state and finish the original /goal COMPLETION condition. Check git log/status first - do not redo completed work.' \
+         --resume "$sid" --output-format json --permission-mode "$PERM_MODE" \
+         --append-system-prompt "$HEADLESS_RULE")
+    [ -n "$MODEL" ]         && cmd+=(--model "$MODEL")
+    [ -n "$ALLOWED_TOOLS" ] && cmd+=(--allowedTools "$ALLOWED_TOOLS")
+  else
+    local goal_text
+    goal_text="$(cat "$file")"
+    cmd=(claude -p "/goal ${goal_text}" --output-format json --permission-mode "$PERM_MODE" \
+        --append-system-prompt "$HEADLESS_RULE")
+    [ -n "$MODEL" ]         && cmd+=(--model "$MODEL")
+    [ -n "$ALLOWED_TOOLS" ] && cmd+=(--allowedTools "$ALLOWED_TOOLS")
+    [ "$WORKTREE" -eq 1 ]   && cmd+=(--worktree "goal-${slug}")
+    sid="$(sid_for_slug "$slug")"
+    [ -n "$sid" ] && cmd+=(--session-id "$sid")
+  fi
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    printf 'DRY RUN [%s]: (cd %q && ' "$slug" "$REPO"
+    printf 'DRY RUN [%s]: (cd %q && ' "$slug" "$runcwd"
     printf '%q ' "${cmd[@]}"
     printf ')\n'
     echo 0 > "$RESULTS_DIR/$slug.exit"
     return 0
   fi
 
-  echo "[$(date +%H:%M:%S)] launch: $slug"
-  ( cd "$REPO" && "${cmd[@]}" >"$out" 2>"$err" ) &
+  echo "[$(date +%H:%M:%S)] $verb: $slug session=${sid:-auto}"
+  [ -n "$sid" ] && echo "        resume if interrupted: $(resume_hint "$slug")"
+  ( cd "$runcwd" && "${cmd[@]}" >"$out" 2>"$err" ) &
   local cpid=$!
   local wpid=""
   if [ "$TIMEOUT" -gt 0 ]; then
@@ -180,6 +229,32 @@ fi
 if [ "${#GOAL_FILES[@]}" -gt 0 ]; then
   for f in "${GOAL_FILES[@]}"; do add_goal "$(slugify_file "$f")" file "$f"; done
 fi
+# Resume entries keep their ORIGINAL slug (no RUN_TAG re-prefix) so the
+# derived session ID and existing worktree both match.
+if [ "${#RESUMES[@]}" -gt 0 ]; then
+  for r in "${RESUMES[@]}"; do
+    rslug="${r%%:*}"
+    rsid="${r#*:}"; [ "$rsid" = "$r" ] && rsid=""
+    [ -d "$REPO/.claude/worktrees/goal-$rslug" ] || die "resume: worktree goal-$rslug not found under $REPO/.claude/worktrees/"
+    SLUGS+=("$rslug")
+    printf '%s' "$rsid" > "$RESULTS_DIR/$rslug.resume"
+  done
+fi
+
+# On kill/interrupt, children die with us — print everything needed to
+# resume each goal before exiting (worktrees + branches are left intact).
+interrupted() {
+  echo ""
+  echo "==== run-goals INTERRUPTED — resume commands (work + worktrees preserved) ===="
+  local slug
+  for slug in "${SLUGS[@]}"; do
+    echo "$slug"
+    echo "        $(resume_hint "$slug")"
+  done
+  echo "(each resumed session keeps its full context; nothing was pruned)"
+  exit 130
+}
+trap interrupted TERM INT
 
 # Launch pool
 for slug in "${SLUGS[@]}"; do
@@ -188,6 +263,7 @@ for slug in "${SLUGS[@]}"; do
   sleep 1   # stagger concurrent worktree creation
 done
 wait
+trap - TERM INT
 
 # Summary (stdout is the only artifact — run dir is deleted on exit)
 DEF="$(default_ref)"
@@ -203,6 +279,10 @@ for slug in "${SLUGS[@]}"; do
     session="$(jq -r '.session_id // empty' "$RESULTS_DIR/$slug.json" 2>/dev/null)"
     is_error="$(jq -r '.is_error // empty' "$RESULTS_DIR/$slug.json" 2>/dev/null)"
     result="$(jq -r '.result // empty' "$RESULTS_DIR/$slug.json" 2>/dev/null | head -c 2000)"
+  fi
+  if [ -z "$session" ]; then
+    session="$(cat "$RESULTS_DIR/$slug.resume" 2>/dev/null)"
+    [ -n "$session" ] || session="$(sid_for_slug "$slug")"
   fi
   status="OK"
   if [ "$rc" != "0" ] || [ "$is_error" = "true" ]; then status="FAIL"; overall=1; fi
@@ -270,5 +350,6 @@ if [ "$WORKTREE" -eq 1 ] && [ "$DRY_RUN" -eq 0 ]; then
 fi
 
 echo ""
-echo "resume a session:  (cd $REPO && claude --resume <session-id>)"
+echo "resume a session:  cd into its WORKTREE (transcripts are keyed by cwd), then claude --resume <session-id>"
+echo "recover a lost id: python3 -c \"import uuid; print(uuid.uuid5(uuid.NAMESPACE_URL, 'run-goals://<slug>'))\"  # slug = worktree name minus 'goal-'"
 exit "$overall"
