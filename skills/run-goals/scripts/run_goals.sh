@@ -38,6 +38,9 @@ Options:
                             'goal-'. SID defaults to the deterministic UUIDv5
                             of the slug (runs launched before session naming
                             existed need the explicit :SID form).
+      --resume-goal TEXT    Attach to the most recent -R: re-send this exact
+                            /goal prompt to the resumed session (re-arms the
+                            goal loop) instead of a generic continue nudge.
   -c, --concurrency N       Max parallel sessions (default 3)
   -m, --model MODEL         Model for child sessions (default: user default)
   -p, --permission-mode M   default|acceptEdits|dontAsk|bypassPermissions
@@ -59,10 +62,13 @@ die() { echo "run_goals: $*" >&2; exit 1; }
 GOAL_FILES=()
 GOAL_TEXTS=()
 RESUMES=()
+RESUME_GOALS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     -g|--goal)            GOAL_TEXTS+=("$2"); shift 2 ;;
-    -R|--resume)          RESUMES+=("$2"); shift 2 ;;
+    -R|--resume)          RESUMES+=("$2"); RESUME_GOALS+=(""); shift 2 ;;
+    --resume-goal)        [ "${#RESUMES[@]}" -gt 0 ] || die "--resume-goal must follow a -R"
+                          RESUME_GOALS[$(( ${#RESUMES[@]} - 1 ))]="$2"; shift 2 ;;
     -c|--concurrency)     CONCURRENCY="$2"; shift 2 ;;
     -m|--model)           MODEL="$2"; shift 2 ;;
     -p|--permission-mode) PERM_MODE="$2"; shift 2 ;;
@@ -164,7 +170,11 @@ launch() {
     sid="${sid_override:-$(sid_for_slug "$slug")}"
     runcwd="$REPO/.claude/worktrees/goal-$slug"
     verb="resume"
-    cmd=(claude -p 'Interrupted mid-goal: resume from the committed worktree state and finish the original /goal COMPLETION condition. Check git log/status first - do not redo completed work.' \
+    # With --resume-goal, re-send the exact original /goal prompt (re-arms
+    # the goal loop); otherwise a generic continuation nudge.
+    local prompt='Interrupted mid-goal: resume from the committed worktree state and finish the original /goal COMPLETION condition. Check git log/status first - do not redo completed work.'
+    [ -s "$file" ] && prompt="/goal $(cat "$file")"
+    cmd=(claude -p "$prompt" \
          --resume "$sid" --output-format json --permission-mode "$PERM_MODE" \
          --append-system-prompt "$HEADLESS_RULE")
     [ -n "$MODEL" ]         && cmd+=(--model "$MODEL")
@@ -232,12 +242,16 @@ fi
 # Resume entries keep their ORIGINAL slug (no RUN_TAG re-prefix) so the
 # derived session ID and existing worktree both match.
 if [ "${#RESUMES[@]}" -gt 0 ]; then
+  ri=0
   for r in "${RESUMES[@]}"; do
     rslug="${r%%:*}"
     rsid="${r#*:}"; [ "$rsid" = "$r" ] && rsid=""
     [ -d "$REPO/.claude/worktrees/goal-$rslug" ] || die "resume: worktree goal-$rslug not found under $REPO/.claude/worktrees/"
     SLUGS+=("$rslug")
     printf '%s' "$rsid" > "$RESULTS_DIR/$rslug.resume"
+    # optional exact /goal prompt to re-send on resume
+    [ -n "${RESUME_GOALS[$ri]}" ] && printf '%s' "${RESUME_GOALS[$ri]}" > "$RESULTS_DIR/$rslug.goal.md"
+    ri=$((ri + 1))
   done
 fi
 
