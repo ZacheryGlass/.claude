@@ -1,6 +1,6 @@
 ---
 description: Review architecture of specified path(s), or staged/unstaged git changes.
-argument-hint: [path/to/directory]... (optional)
+argument-hint: "[path/to/directory]... (optional)"
 allowed-tools: Bash(git:diff)
 ---
 Use the **architecture-reviewer** subagent to conduct a thorough architectural review.

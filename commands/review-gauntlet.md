@@ -1,6 +1,6 @@
 ---
 description: Run all standard review agents in parallel on current changes
-argument-hint: [optional: specific files or commit range to review]
+argument-hint: "[optional: specific files or commit range to review]"
 ---
 
 # Review Gauntlet
