@@ -1,6 +1,6 @@
 ---
 description: Check performance of specified files, or of staged/unstaged git changes.
-argument-hint: [path/to/file]... (optional)
+argument-hint: "[path/to/file]... (optional)"
 allowed-tools: Bash(git:diff)
 ---
 Use the **performance-profiler** subagent to analyze code for performance issues.

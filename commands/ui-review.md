@@ -1,6 +1,6 @@
 ---
 description: Review UI/UX of specified files, or of staged/unstaged git changes.
-argument-hint: [path/to/file]... (optional)
+argument-hint: "[path/to/file]... (optional)"
 allowed-tools: Bash(git:diff)
 ---
 Engage the **ui-ux-consultant** subagent to perform a UI/UX and accessibility review.

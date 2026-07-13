@@ -1,6 +1,6 @@
 ---
 description: Use bug-finder agent to hunt for logical errors and potential runtime issues
-argument-hint: [optional: specific file, directory, or function to focus on]
+argument-hint: "[optional: specific file, directory, or function to focus on]"
 ---
 
 # Bug Finder Command
