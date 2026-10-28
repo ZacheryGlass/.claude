@@ -13,20 +13,22 @@ Claude Code is an interactive command-line interface that provides AI assistance
   - Custom hooks for enhanced functionality
   - etc.
 
-- **`statusline.exe` / `statusline.go`** - Custom status line binary (see [Statusline](#statusline) below)
+- **`statusline.go`** - Custom status line (see [Statusline](#statusline) below). `build_statusline.sh` and `build_statusline.ps1` build it for Windows and macOS, and `statusline.cmd` runs the right binary on each.
 
 - **`CLAUDE.md`** - Minimal agent instructions
 
 - **`hooks/`** - Pre/Post-tool-use scripts:
-  - `emoji_remover.py` - Post-edit hook to ensure no emojis are used
-  - `github_issue_guard.py` - Guard for GitHub issue interactions
-  - `protect_claude_md.py` - Protection for critical configuration files
+  - `emoji_remover.py` - Post-edit hook that tells Claude to remove any emojis an edit adds
+  - `emoji_remover.cmd` - Cross-platform wrapper that `settings.json` calls to run `emoji_remover.py` on Windows or macOS
+  - `github_issue_guard.py` - Guard for GitHub issue interactions (not enabled in `settings.json`)
+  - `protect_claude_md.py` - Protection for critical configuration files (not enabled in `settings.json`)
 
 - **`skills/`** - Reusable agent skills:
-  - `arewedone-g` - Runs a structural completeness review via Gemini CLI to offload token-heavy review work.
   - `gemini-agent` - Delegates arbitrary tasks to Gemini CLI for a second opinion or token savings.
-  - `parallel-phases` - End-to-end orchestrator for multi-task parallel work. Setup phase gathers code intelligence, analyzes merge-conflict risks, groups tasks into maximally-parallel phases, and writes enriched self-contained agent prompts. After an explicit approval gate, the execution phase dispatches Opus agents in worktrees with a per-task 3-reviewer gauntlet (bug-finder + structural + architecture), auto-fix commits, phase merge + test gates, and a doc-update agent at completion. State lives at `~/.claude/parallel-phases/<project-hash>/` (outside the repo). Resilient to `/clear`.
+  - `generate-goal` - Turns the current conversation into one self-contained `/goal` prompt, so a long discussion doesn't need summarizing by hand.
+  - `git-worktree-prune` - Deletes stale git worktrees and local branches, keeping any that hold work found nowhere else.
   - `root-cause-tracing` - Traces a bug backward through the call stack, adding instrumentation as needed, to find the original trigger.
+  - `run-goals` - Runs several `/goal` prompts in parallel as non-interactive Claude Code sessions, each in its own git worktree, and reports the results.
   - `skill-creator` - Scaffolds and refines new skills following the official skill authoring guidelines.
 
 - **`commands/`** - Custom slash commands:
@@ -36,11 +38,14 @@ Claude Code is an interactive command-line interface that provides AI assistance
   - `/commit` - Draft a conventional commit from the current staged/unstaged diff.
   - `/docs` - Run the documentation review and implementation workflow.
   - `/perf-check` - Invoke the `performance-profiler` agent to analyze code for performance issues.
+  - `/review-gauntlet` - Run all the standard review agents in parallel on current changes, then address their findings.
   - `/ui-review` - Invoke the `ui-ux-consultant` agent for a UI/UX and accessibility review.
 
-- **`agents/`** - Specialized sub-agents invoked via the Task tool:
+- **`agents/`** - Specialized sub-agents invoked via the Agent tool:
   - `architecture-reviewer` - Senior architect review of structural integrity, scalability, and long-term maintainability.
   - `bug-finder` - Hunts for logical errors, race conditions, and unhandled edge cases in a specific function or module.
+  - `c-safety-reviewer` - Reviews changed C code for leaked memory, file descriptors and sockets, and for security vulnerabilities.
+  - `compatibility-reviewer` - After a change to an interface, file format or config, finds the scripts, docs and other consumers that still expect the old one.
   - `doc-implementer` - Implements documentation changes based on review findings.
   - `doc-reviewer` - Analyzes documentation state and reports gaps, outdated content, and quality issues without making changes.
   - `git-cherry-pick-orchestrator` - Orchestrates cherry-pick operations across repositories with submodules via a plan-then-execute workflow.
@@ -54,7 +59,7 @@ Claude Code is an interactive command-line interface that provides AI assistance
 
 ## Statusline
 
-`statusline.exe` is a small Go binary that runs every second and renders a status bar. All data is cached to disk so git and file reads only happen when something actually changes.
+`statusline.go` builds to a small binary that runs every second and renders a status bar. All data is cached to disk so git and file reads only happen when something actually changes.
 
 ### Performance
 
