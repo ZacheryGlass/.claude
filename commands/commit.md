@@ -1,6 +1,6 @@
 ---
 allowed-tools: Bash(git add:*), Bash(git status:*), Bash(git commit:*), Bash(git diff:*)
-argument-hint: [description] | [multi-commit request]
+argument-hint: "[description] | [multi-commit request]"
 description: Create intelligent conventional commits based on conversation context. If there is not enough context in the conversation, assume the user wants to commit the current working tree changes. Use logical judgement to determine which files should be included in the commit. 
 ---
 

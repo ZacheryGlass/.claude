@@ -1,6 +1,6 @@
 ---
 description: Complete documentation workflow: review, implement fixes, and commit changes
-argument-hint: [optional: specific file or directory to focus on]
+argument-hint: "[optional: specific file or directory to focus on]"
 ---
 
 # Documentation Workflow Command
