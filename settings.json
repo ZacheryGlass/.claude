@@ -3,21 +3,16 @@
     "CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL": "1",
     "ENABLE_TOOL_SEARCH": "true"
   },
-  "includeCoAuthoredBy": false,
+  "attribution": false,
   "permissions": {
     "allow": [
-      "Read(//D:/*/git/gpu/**)",
-      "Edit(//D:/*/git/gpu/**)",
       "WebSearch",
       "WebFetch(domain:*)",
       "Read",
-      "Write",
       "Bash(ls:*)",
-      "Bash(dir:*)",
       "Bash(pwd:*)",
       "Bash(find:*)",
       "Bash(grep:*)",
-      "Bash(grep -E:*)",
       "Bash(rg:*)",
       "Bash(cat:*)",
       "Bash(head:*)",
@@ -31,16 +26,14 @@
       "Bash(stat:*)",
       "Bash(du:*)",
       "Bash(which:*)",
-      "Bash(where:*)",
       "Bash(mkdir:*)",
       "Bash(touch:*)",
-      "Bash(chmod:*)",
       "Bash(sed -n:*)",
       "Bash(sed --posix -n:*)",
       "Bash(sed -E -n:*)",
       "Bash(sed -r -n:*)",
       "Bash(sed-safe:*)",
-      "Bash(nl -ba)",
+      "Bash(nl -ba:*)",
       "Bash(git status:*)",
       "Bash(git log:*)",
       "Bash(git show:*)",
@@ -62,25 +55,18 @@
       "Bash(git fetch:*)",
       "Bash(git branch:*)",
       "Bash(git switch:*)",
-      "Bash(git checkout:*)",
-      "Bash(git restore:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(git stash:*)",
-      "Bash(git merge:*)",
-      "Bash(git rebase:*)",
-      "Bash(git -c core.editor=true rebase --continue)",
-      "Bash(aws:*)"
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": [],
     "defaultMode": "auto"
   },
-  "model": "claude-opus-4-8",
+  "model": "opus",
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Edit|MultiEdit|Write|NotebookEdit",
+        "matcher": "Edit|Write|NotebookEdit",
         "hooks": [
           {
             "type": "command",
@@ -96,54 +82,55 @@
     "refreshInterval": 1
   },
   "enabledPlugins": {
-    "data@knowledge-work-plugins": true,
-    "superpowers@claude-plugins-official": false,
-    "code-review@claude-plugins-official": false,
-    "clangd-lsp@claude-plugins-official": true,
-    "frontend-design@claude-plugins-official": true,
-    "document-skills@anthropic-agent-skills": false,
-    "axiom-planning@foundryside-marketplace": true,
-    "playwright@claude-plugins-official": true,
-    "pr-review-toolkit@claude-plugins-official": false
+    "finance@synced": false
   },
-  "extraKnownMarketplaces": {
-    "knowledge-work-plugins": {
-      "source": {
-        "source": "github",
-        "repo": "anthropics/knowledge-work-plugins"
-      }
-    },
-    "claude-code-plugins": {
-      "source": {
-        "source": "github",
-        "repo": "anthropics/claude-code"
-      }
-    },
-    "claude-plugins-official": {
-      "source": {
-        "source": "git",
-        "url": "https://github.com/anthropics/claude-plugins-official.git"
-      }
-    },
-    "anthropic-agent-skills": {
-      "source": {
-        "source": "github",
-        "repo": "anthropics/skills"
-      }
-    },
-    "foundryside-marketplace": {
-      "source": {
-        "source": "github",
-        "repo": "tachyon-beep/skillpacks"
-      }
+  "extraKnownMarketplaces": {},
+  "effortLevel": "xhigh",
+  "modelSettings": {
+    "claude-opus-5-5": {
+      "effortLevel": "xhigh"
     }
   },
-  "effortLevel": "xhigh",
   "autoUpdatesChannel": "latest",
   "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
   "theme": "dark-daltonized",
   "teammateMode": "auto",
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
-  "skipWorkflowUsageWarning": true
+  "autoMode": {
+    "soft_deny": [
+      "$defaults",
+      "Bash(rm:*) in backend/.env or frontend/.env — deletion of local secret files",
+      "Writes to backend/migrations/027_user_identity_and_secrets.sql outside an explicit migration task"
+    ],
+    "environment": [
+      "### Org-wide",
+      "**Organization**: None configured",
+      "**Cloud provider(s)**: Azure for my-money-tracker (App Service, Static Web Apps, Database for PostgreSQL)",
+      "**Repository visibility**: mixed — some repos under github.com/ZacheryGlass/ are public (including ZacheryGlass/.claude); my-money-tracker, polybot and lineage are private. Moving content from a private repo into a public one leaves the trust boundary",
+      "**Internal sharing / snippet hosting**: None configured — treat public paste/gist services as outside the trust boundary",
+      "**Secrets management**: my-money-tracker encrypts per-user API keys with AES-256-GCM; its CI secrets are referenced by name only (AZURE_BACKEND_PUBLISH_PROFILE, AZURE_STATIC_WEB_APPS_API_TOKEN, AZURE_WEBAPP_PUBLISH_PROFILE, GITHUB_TOKEN) — values not accessible",
+      "**Default / protected branches**: main or master, whichever is the repo default; rulesets not queryable here — treat the default branch as possibly protected",
+      "**CI/CD deploy targets**: my-money-tracker deploys to Azure App Service (backend), Azure Static Web Apps (frontend) and Azure Database for PostgreSQL via GitHub Actions workflows in .github/workflows",
+      "**Network posture**: None configured",
+      "**Host containment**: None configured — assume Claude Code runs on an ordinary developer machine with open internet",
+      "**Source control**: any repo under github.com/ZacheryGlass/ (the user's own GitHub account) and its origin remote",
+      "**Trusted internal domains**: None configured",
+      "**Trusted cloud buckets**: None configured",
+      "**Key internal services**: None configured",
+      "**Internal package registry**: None configured",
+      "**Sensitive data locations & audiences**: my-money-tracker: backend/.env, frontend/.env, frontend/.env.production.example (local secret files); backend/src/utils/secretCrypto.js and backend/tests/secrets.test.js (secrets-handling code); backend/migrations/027_user_identity_and_secrets.sql (user identity/secrets schema) — share only with audiences cleared at the [named+specifics] bar",
+      "**Data retention / declassification**: None configured",
+      "**Sensitive remote targets**: any namespace, host, or container whose name carries prod or production as a whole word or name segment",
+      "**Protected deployment namespaces / environments**: None configured — fall back to the Sensitive remote targets heuristic",
+      "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries prod or production as a whole word or name segment",
+      "### User-specific",
+      "**Primary use of Claude Code**: software development on personal projects (e.g. my-money-tracker, polybot, lineage)",
+      "**Trusted repos**: local clones under /Users/zacheryglass/git/ (including their .claude/worktrees/ worktrees) and /Users/zacheryglass/.claude, whose origin remotes are under github.com/ZacheryGlass/",
+      "**Org-specific CLIs**: None configured",
+      "routine under ZacheryGlass/ prefix: git and gh operations against any repo under github.com/ZacheryGlass/ target the user's own repos"
+    ]
+  },
+  "switchModelsOnFlag": false
 }
