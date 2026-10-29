@@ -1,7 +1,7 @@
 ---
 description: Review architecture of specified path(s), or staged/unstaged git changes.
 argument-hint: "[path/to/directory]... (optional)"
-allowed-tools: Bash(git:diff)
+allowed-tools: Bash(git diff *)
 ---
 Use the **architecture-reviewer** subagent to conduct a thorough architectural review.
 
@@ -14,13 +14,10 @@ Your analysis target is determined by the following rules:
 ### Context from Git (if no arguments provided)
 
 **Staged Changes (Priority 1):**
-```diff
-!git diff --staged
-```
+!`git diff --staged`
 
 **Unstaged Changes (Priority 2):**
-```diff
-!git diff HEAD
-```
+!`git diff HEAD`
+
 ---
 *Your final report should evaluate the code against the principles of Separation of Concerns, SOLID, Scalability, and Maintainability.*

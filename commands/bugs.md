@@ -43,4 +43,4 @@ The agent will go beyond syntax and style to focus on:
 - Security vulnerabilities
 - Performance bottlenecks that could cause issues
 
-Use the Task tool to launch the bug-finder agent with appropriate context about what code to analyze.
+Use the Agent tool to launch the bug-finder agent with appropriate context about what code to analyze.

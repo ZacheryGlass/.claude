@@ -34,7 +34,7 @@ Use the doc-implementer agent to execute the review recommendations:
 - Ensure consistent formatting and quality
 
 ## Phase 3: Commit Changes
-Use the committer agent to create a conventional commit for all documentation improvements.
+Use the Skill tool to run the `commit` skill to create a conventional commit for all documentation improvements.
 
 If arguments are provided, focus the entire workflow on the specified files or directories. Otherwise, perform a comprehensive documentation review and update of the entire project.
 

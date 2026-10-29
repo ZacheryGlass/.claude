@@ -25,17 +25,15 @@ If arguments specify files or a commit range, review that. Otherwise review unst
 
 ## Step 1: Launch All Reviewers in Parallel
 
-Launch ALL of the following agents simultaneously using the Agent tool (one message, multiple tool calls). Each agent receives the same change context identified above.
+Launch all of the following agents that apply, simultaneously, using the Agent tool (one message, multiple tool calls). Each agent receives the same change context identified above.
 
 1. **structural-completeness-reviewer** -- Verify changes are fully integrated, old code removed, no orphaned references or incomplete wiring.
 
-2. **bug-finder** -- Hunt for logical errors, race conditions, unhandled edge cases, off-by-one errors, null dereferences.
+2. **bug-finder** -- Hunt for logical errors, race conditions, unhandled edge cases, off-by-one errors, null dereferences, and silent failures (swallowed errors, inappropriate fallbacks, catch blocks that hide failures).
 
-3. **silent-failure-hunter** -- Find swallowed errors, inappropriate fallbacks, catch blocks that hide failures, error paths that produce no observable signal.
+3. **c-safety-reviewer** (only if the changes touch `.c` or `.h` files) -- Check memory safety (buffer overflows, use-after-free, double-free), resource lifecycle (fd/socket leaks in error paths), integer overflow, crypto misuse, re-entrancy in callbacks.
 
-4. **c-safety-reviewer** -- Check memory safety (buffer overflows, use-after-free, double-free), resource lifecycle (fd/socket leaks in error paths), integer overflow, crypto misuse, re-entrancy in callbacks.
-
-5. **compatibility-reviewer** -- Verify no silent breakage of consumers: env vars, CLI flags, API shapes, state file formats, struct layouts, deploy scripts, documentation examples.
+4. **compatibility-reviewer** -- Verify no silent breakage of consumers: env vars, CLI flags, API shapes, state file formats, struct layouts, deploy scripts, documentation examples.
 
 Each agent prompt must include:
 - The specific files changed (from context above)
@@ -71,7 +69,7 @@ For Advisory items, list them but do not fix unless trivially addressable in the
 ## Step 4: Re-verify
 
 After fixing, run a quick sanity check:
-- `make` (or appropriate build command) to verify compilation
+- The project's build command (e.g. `make`, `npm run build`) to verify compilation
 - Confirm fixes don't introduce new issues obvious from reading the diff
 
 Do NOT re-run the full gauntlet. Trust the fixes unless the build fails.
