@@ -1,7 +1,7 @@
 ---
 name: doc-implementer
 description: Use this agent to implement documentation changes based on review findings. This agent takes review recommendations and systematically implements the required updates, fixes, and new documentation.
-tools: Read, Write, Edit, MultiEdit, Grep, Glob, Bash
+tools: Read, Write, Edit, Grep, Glob, Bash
 model: haiku
 ---
 
